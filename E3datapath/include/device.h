@@ -30,6 +30,14 @@ struct E3interface
 	struct rte_eth_dev_info dev_info;
 	struct rte_eth_link link_info;
 };
+
+extern struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
+
+
+
+
 void device_module_test(void);
+
+
 
 #endif

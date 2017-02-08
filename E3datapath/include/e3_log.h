@@ -1,6 +1,8 @@
 #ifndef _E3_LOG_H
 #define _E3_LOG_H
 
+#include <stdio.h>
+#include <time.h>
 
 #define E3_ASSERT(condition)  \
 do{ \
@@ -27,10 +29,10 @@ do{ \
 	fprintf(fp_log,(format),##__VA_ARGS__);} \
 	fflush(fp_log);
 
-
-#if ! defined(DO_NOT_INCLUDE_FP_LOG)
 extern FILE * fp_log;
+#if defined(USE_STD_LOG)
+	#define LOG_FILE_PATH "/dev/stdout"
+#else
+	#define LOG_FILE_PATH "/var/log/e3vswitch.log"
 #endif
-//#define LOG_FILE_PATH "/dev/stdout"
-#define LOG_FILE_PATH "/root/e3vswitch.log"
 #endif

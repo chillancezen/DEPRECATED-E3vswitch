@@ -50,77 +50,14 @@
 #include <node_adjacency.h>
 #include <lcore_extension.h>
 #include <device.h>
-
-extern struct node * lcore_task_list[MAX_LCORE_SUPPORTED];/*exported from lcore_extension*/
-int node_dummy_process(void * arg __rte_unused);
-int node_dummy_process(void * arg __rte_unused)
-{
-
-	
-	return 0;
-}
-void node_dummy_reclaim(struct rcu_head * rcu __rte_unused);
-void node_dummy_reclaim(struct rcu_head * rcu __rte_unused)
-{
-	printf("helloworld:%d\n",rte_lcore_id());
-}
-
-struct node node={
-	.name="management-node",
-	.node_process_func=node_dummy_process,
-	.node_reclaim_func=node_dummy_reclaim,
-	.node_type=node_type_misc,
-	.lcore_id=1
-};
-struct node node1={
-	.name="dpdk-input",
-	.node_process_func=node_dummy_process,
-	.node_reclaim_func=node_dummy_reclaim,
-	.node_type=node_type_misc,
-	.lcore_id=2
-};
-
-struct node_class class1={
-	.class_name="l2-input-class",
-	.class_reclaim_func=node_dummy_reclaim,
-	.current_node_nr=0
-};
-struct node_class class2={
-	.class_name="if1-mq-input-class",
-	.class_reclaim_func=node_dummy_reclaim,
-	.current_node_nr=0
-};
+#include <l2-input.h>
 
 
-static int
-lcore_hello(__attribute__((unused)) void *arg)
-{
-	//struct node ** lcore_task_list=(struct node **)get_lcore_task_list_base();
 
-	int last_cnt=0;
-	int cnt=0;
-	struct node* pnode;
-	unsigned lcore_id=rte_lcore_id();
-	//printf("enter :%d\n",lcore_id);
-	rcu_register_thread();
-	while(1/*should_stop()*/){
-		cnt=0;
-		foreach_node_in_lcore(pnode,lcore_id){
-			cnt++;
-			pnode->node_process_func(pnode);
-			rcu_quiescent_state();
-		}
-		if(cnt!=last_cnt){
-			last_cnt=cnt;
-			printf("node in lcore %d:%d\n",lcore_id,cnt);
-		}
-		if(!cnt)
-			rcu_quiescent_state();
-	}
-	rcu_thread_offline();
-	rcu_unregister_thread();
-	return 0;
-}
+
+
+
+
 int
 main(int argc, char **argv)
 {
@@ -133,32 +70,14 @@ main(int argc, char **argv)
 
 	init_lcore_extension();
 
-	#if 0
-	register_node(&node);
-	register_node(&node1);
-	register_node_class(&class1);
-	register_node_class(&class2);
-	dump_node_class(stdout);
-	attach_node_to_lcore(&node);
-	attach_node_to_lcore(&node1);
-	#endif
-	
-	
-
+	l2_input_early_init();
+	register_l2_input_node(-1);
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
-		rte_eal_remote_launch(lcore_hello, NULL, lcore_id);
+		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
-	#if 0
-	getchar();
-	set_node_to_node_edge("management-node",23,"dpdk-input");
-	set_node_to_class_edge("management-node",2,"l2-input-class");
-	set_node_to_class_edge("management-node",63,"if1-mq-input-class");
-	//unregister_node_class(&class1);
-	//unregister_node_class(&class2);
-	dump_node_edges("management-node");
-	#endif
+	
 	device_module_test();
-	lcore_hello(NULL);
+	lcore_default_entry(NULL);
 	while(1)
 		sleep(1);
 	rte_eal_mp_wait_lcore();

@@ -44,8 +44,8 @@ APP = helloworld
 # all source are stored in SRCS-y
 SRCS-y := main.c
 
-CFLAGS += -O3 -I/mnt/projects/E3switch/E3infra/include 
-CFLAGS += $(WERROR_FLAGS) -L/mnt/projects/E3switch/E3infra -I/root/mywork/userspace-rcu/src -L/root/mywork/userspace-rcu/src/.libs
+CFLAGS += -O3 -I/mnt/projects/E3switch/E3datapath/include 
+CFLAGS += $(WERROR_FLAGS) -L/mnt/projects/E3switch/E3datapath -I/root/mywork/userspace-rcu/src -L/root/mywork/userspace-rcu/src/.libs
 
-LDFLAGS += -lurcu-qsbr -le3infra  
+LDFLAGS += -lurcu-qsbr -le3datapath 
 include $(RTE_SDK)/mk/rte.extapp.mk

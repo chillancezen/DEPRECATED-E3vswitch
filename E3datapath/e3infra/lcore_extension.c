@@ -33,7 +33,7 @@ int _init_per_socket_mempool(void)
 	return 0;	
 }
 
-
+/*extension of DPDK eal init,should be called immediately after rte_eal_init()*/
 int init_lcore_extension(void)
 {
 	unsigned lcore_id;
@@ -63,6 +63,10 @@ int  get_lcore_by_socket_id(int socket_id)
 	int target_lcore_id=-1;
 	int lcore_id;
 	RTE_LCORE_FOREACH(lcore_id){/*all the lcores are online*/
+	#if defined(PRESERVE_MASTER_LCORE)
+		if(lcore_id==rte_get_master_lcore())
+			continue;
+	#endif
 		if(lcore_records[lcore_id].socket_id!=socket_id)
 			continue;
 		if(target_lcore_id<0){
@@ -82,10 +86,12 @@ int  get_lcore(void)
 	int target_lcore_id=-1;
 	int lcore_id;
 	RTE_LCORE_FOREACH(lcore_id){
-		
+	#if defined(PRESERVE_MASTER_LCORE)
+		if(lcore_id==rte_get_master_lcore())
+			continue;
+	#endif
 		if(target_lcore_id<0){
 			target_lcore_id=lcore_id;
-			
 			continue;
 		}
 		if(lcore_records[lcore_id].attached_nodes<lcore_records[target_lcore_id].attached_nodes)
@@ -103,6 +109,10 @@ int  get_io_lcore_by_socket_id(int socket_id)
 	int target_lcore_id=-1;
 	int lcore_id;
 	RTE_LCORE_FOREACH(lcore_id){
+	#if defined(PRESERVE_MASTER_LCORE)
+		if(lcore_id==rte_get_master_lcore())
+			continue;
+	#endif
 		if(lcore_records[lcore_id].socket_id!=socket_id)
 			continue;
 		if(target_lcore_id<0){
@@ -122,6 +132,10 @@ int get_io_lcore(void)
 	int target_lcore_id=-1;
 	int lcore_id;
 	RTE_LCORE_FOREACH(lcore_id){
+	#if defined(PRESERVE_MASTER_LCORE)
+		if(lcore_id==rte_get_master_lcore())
+			continue;
+	#endif
 		if(target_lcore_id<0){
 			target_lcore_id=lcore_id;
 			continue;
@@ -148,7 +162,8 @@ int attach_node_to_lcore(struct node *node)
 	struct node *pnode=NULL;
 	int lcore_id=node->lcore_id;
 	if(lcore_id<0)
-		lcore_id=0;/*todo:choose a least-loaded lcore to accommodate this node*/
+		lcore_id=rte_get_master_lcore();/*todo:choose a least-loaded lcore to accommodate this node*/
+										/*Feb 8 ,2017:master core service it for simplicity*/
 	if(lcore_id>=MAX_LCORE_SUPPORTED)
 		return -1;
 	for(pnode=lcore_task_list[lcore_id];pnode&&(pnode!=node);pnode=pnode->next);
@@ -225,3 +240,35 @@ int lcore_extension_test()
 	
 	return 0;
 }
+static int lcore_should_stop(void)
+{
+	return 0;
+}
+
+int lcore_default_entry(__attribute__((unused)) void *arg)
+{
+	int last_cnt=0;
+	int cnt=0;
+	struct node* pnode;
+	unsigned lcore_id=rte_lcore_id();
+	rcu_register_thread();
+	while(!lcore_should_stop()){
+		cnt=0;
+		foreach_node_in_lcore(pnode,lcore_id){
+			cnt++;
+			pnode->node_process_func(pnode);
+			rcu_quiescent_state();
+		}
+		if(cnt!=last_cnt){
+			last_cnt=cnt;
+			#if 0
+			E3_LOG("node in lcore %d:%d\n",lcore_id,cnt);
+			#endif
+		}
+		rcu_quiescent_state();
+	}
+	rcu_thread_offline();
+	rcu_unregister_thread();
+	return 0;
+}
+

@@ -4,6 +4,8 @@
 #include <rte_malloc.h>
 #include <node.h>
 #include <lcore_extension.h>
+
+
 struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
 
 static const struct rte_eth_conf port_conf = {
@@ -34,11 +36,28 @@ int input_node_process_func(void *arg)
 	if(!nr_mbufs)
 		return 0;
 	/*loopback all the packets*/
+	#if 1
+	for(idx=0;idx<nr_mbufs;idx++){
+		char tmp;
+		char * data=
+			rte_pktmbuf_mtod(mbufs[idx],char *);
+		tmp=data[0];data[0]=data[0+6];data[0+6]=tmp;
+		tmp=data[1];data[1]=data[1+6];data[1+6]=tmp;
+		tmp=data[2];data[2]=data[2+6];data[2+6]=tmp;
+		tmp=data[3];data[3]=data[3+6];data[3+6]=tmp;
+		tmp=data[4];data[4]=data[4+6];data[4+6]=tmp;
+		tmp=data[5];data[5]=data[5+6];data[5+6]=tmp;
+		
+	}
+	#endif
 	nr_delivered=deliver_mbufs_between_nodes(pif->output_node,pif->input_node,mbufs,nr_mbufs);
 	for(idx=nr_delivered;idx<nr_mbufs;idx++)
 		rte_pktmbuf_free(mbufs[idx]);
+	#if 0
 	if(nr_delivered!=nr_mbufs)
 		printf("%s remain %d unsent\n",pif->ifname,nr_mbufs-nr_delivered);
+	#endif
+	
 	return 0;
 }
 int output_node_process_func(void *arg)
@@ -56,8 +75,10 @@ int output_node_process_func(void *arg)
 	for(idx=nr_xmited;idx<nr_mbufs;idx++){
 		rte_pktmbuf_free(mbufs[idx]);
 	}
+	#if 0
 	if(nr_xmited!=nr_mbufs)
 		printf("%s remain %d unsent\n",pif->ifname,nr_mbufs-nr_xmited);
+	#endif
 	return 0;
 }
 
@@ -94,7 +115,7 @@ char * link_speed_to_string(uint32_t speed)
 }
 int register_native_dpdk_port(const char * params,int use_dev_numa)
 {
-	int node_socket_id;
+	int node_socket_id=0;
 	struct node * pinput_node=NULL;
 	struct node * poutput_node=NULL;
 	struct E3interface *pif;
@@ -149,38 +170,44 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 		dev_lcore_id=get_io_lcore_by_socket_id(node_socket_id);
 	}else{
 		dev_lcore_id=get_io_lcore();/*allocate a randomized numa and lcore*/
-		if(dev_lcore_id!=255)
+		/*if(dev_lcore_id!=255)*/
+		if(validate_lcore_id(dev_lcore_id))
 			node_socket_id=lcore_to_socket_id(dev_lcore_id);
 	}
 
 	pinput_node->lcore_id=dev_lcore_id;/*arrange two nodes on the same sockets*/
-	if(pinput_node->lcore_id==255)
-		goto error_dev_detach;
+	/*if(pinput_node->lcore_id==255)*/
+	if(!validate_lcore_id(pinput_node->lcore_id))
+		goto error_node_dealloc;
 	poutput_node->lcore_id=get_io_lcore_by_socket_id(node_socket_id);
-	if(poutput_node->lcore_id==255)
-		goto error_dev_detach;
+	/*if(poutput_node->lcore_id==255)*/
+	if(!validate_lcore_id(poutput_node->lcore_id))	
+		goto error_node_dealloc;
 	
 	if(register_node(pinput_node))
-		goto error_node_init;
+		goto error_node_uninit;
 	if(register_node(poutput_node))
-		goto error_node_init;
+		goto error_node_uninit;
+	
 	pif->input_node=pinput_node->node_index;
 	pif->output_node=poutput_node->node_index;
+	
 	#if 1
 		E3_ASSERT(find_node_by_index(pif->input_node)==pinput_node);
 		E3_ASSERT(find_node_by_index(pif->output_node)==poutput_node);
 	#endif
+	
 	/*configure port and queues*/
 	rc=rte_eth_dev_configure(pif->port_id,1,1,&port_conf);
 	if(rc<0){
 		E3_ERROR("error occurs during configuring port:%d\n",pif->port_id);
-		goto error_node_init;
+		goto error_node_uninit;
 	}
 	rte_eth_promiscuous_enable(pif->port_id);
 	mempool=get_mempool_by_socket_id(node_socket_id);
 	if(!mempool){
 		E3_ERROR("error occurs during fetch per-socket mempool :%d\n",node_socket_id);
-		goto error_node_init;
+		goto error_node_uninit;
 	}
 	
 	rc=rte_eth_rx_queue_setup(pif->port_id,
@@ -191,7 +218,7 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 		mempool);
 	if(rc<0){
 		E3_ERROR("error occurs during rx queue setup:%d\n",pif->port_id);
-		goto error_node_init;
+		goto error_node_uninit;
 	}
 	rc=rte_eth_tx_queue_setup(pif->port_id,
 		0,
@@ -200,12 +227,12 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 		NULL);
 	if(rc<0){
 		E3_ERROR("error occurs during tx queue setup:%d\n",pif->port_id);
-		goto error_node_init;
+		goto error_node_uninit;
 	}
 	rc=rte_eth_dev_start(pif->port_id);
 	if(rc<0){
 		E3_ERROR("error occurs during start interface:%d\n",pif->port_id);
-		goto error_node_init;
+		goto error_node_uninit;
 	}
 	rte_eth_link_get(port_id,&pif->link_info);/*may block for seconds before it returns */
 	{/*make interface more human readable*/
@@ -227,13 +254,13 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 	if(rc){
 		put_lcore(pinput_node->lcore_id,1);
 		E3_ERROR("can not attach node:%s to lcore :%d\n",pinput_node->name,pinput_node->lcore_id);
-		goto error_node_init;
+		goto error_node_uninit;
 	}
 	rc=attach_node_to_lcore(poutput_node);
 	if(rc){
 		put_lcore(poutput_node->lcore_id,1);
 		E3_ERROR("can not attach node:%s to lcore :%d\n",poutput_node->name,poutput_node->lcore_id);
-		goto error_node_init;
+		goto error_node_uninit;
 	}
 
 	pif->port_status=PORT_STATUS_DOWN;
@@ -247,9 +274,15 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 
 	return 0;
 	
-	error_node_init:
+	error_node_uninit:
 		unregister_node(pinput_node);
 		unregister_node(poutput_node);
+
+	error_node_dealloc:
+		if(pinput_node)
+			rte_free(pinput_node);
+		if(poutput_node)
+			rte_free(poutput_node);
 		
 	error_dev_detach:
 		{
@@ -367,12 +400,14 @@ void unregister_native_dpdk_port(int port_id)
 			put_lcore(poutput_node->lcore_id,1);
 	}
 
+	#if 0
 	/*stop queues immediately*/
 	if(rte_eth_dev_rx_queue_stop(pif->port_id,0))
 		E3_WARN("errors occurs in release port %d rx queue:%d\n",pif->port_id,0);
 	if(rte_eth_dev_tx_queue_stop(pif->port_id,0))
 		E3_WARN("errors occurs in release port %d tx queue:%d\n",pif->port_id,0);
-
+	#endif
+	
 	/*call releasing bottom half in quiescent state*/
 	if(pif->under_releasing)
 		return ;
@@ -382,9 +417,30 @@ void unregister_native_dpdk_port(int port_id)
 }
 void device_module_test(void)
 {
-
+	#if 1
 	register_native_dpdk_port("0000:02:01.0",0);
 	register_native_dpdk_port("0000:02:06.0",0);
+	register_native_dpdk_port("0000:02:07.0",0);
+	#else 
+	register_native_dpdk_port("0000:01:00.0",0);
+	register_native_dpdk_port("0000:01:00.1",0);
+	getchar();
+	puts("ready:");
+	unregister_native_dpdk_port(find_port_id_by_ifname("10GEthernet1/0/0"));
+	getchar();
+	puts("ready1:");
+	unregister_native_dpdk_port(find_port_id_by_ifname("10GEthernet1/0/1"));
+	getchar();
+	puts("back:");
+	register_native_dpdk_port("0000:01:00.0",0);
+	getchar();
+	puts("back1:");
+	register_native_dpdk_port("0000:01:00.1",0);
+
+	
+	#endif
+	
+	#if 0
 	//register_native_dpdk_port("0000:01:00.2",0);
 	register_native_dpdk_port("eth_pcap0,iface=virbr0",0);
 	//register_native_dpdk_port("eth_pcap1,iface=tapbfefc8e2-b1",0);
@@ -397,6 +453,7 @@ void device_module_test(void)
 
 	//unregister_native_dpdk_port(find_port_id_by_ifname("10GEthernet3/0/1"));
 	//dump_nodes(stdout);
+	#endif
 }
 __attribute__((constructor)) void device_module_init(void)
 {

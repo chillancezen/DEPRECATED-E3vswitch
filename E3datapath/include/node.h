@@ -62,7 +62,7 @@ struct node{
 	};
 	#endif
 	
-	struct node * next;
+	struct node * next;/*pointer to next node in lcore task list*/
 	void * node_priv;/*it may point to node-main instance*/
 	
 	__attribute__((aligned(64))) uint64_t cacheline2[0];
@@ -73,12 +73,29 @@ struct node{
 
 
 
+extern struct node *gnode_array[MAX_NR_NODES];
+
 
 struct node_registery{
 	
 };
-inline struct node* find_node_by_name(const char * name);
-inline struct node* find_node_by_index(int index);
+/*let them to be inlined*/
+__attribute__((always_inline)) static inline struct node* find_node_by_name(const char * name)
+{	
+	struct node * pnode=NULL;
+	int idx=0;
+	for(idx=0;idx<MAX_NR_NODES;idx++)
+		if(gnode_array[idx]&&!strcmp((char*)gnode_array[idx]->name,name)){
+			pnode=gnode_array[idx];
+			break;
+		}
+	return pnode;
+}
+__attribute__((always_inline)) static inline struct node* find_node_by_index(int index)
+{
+	return (index>=MAX_NR_NODES)?NULL:rcu_dereference(gnode_array[index]);
+}
+
 
 int register_node(struct node *node);
 void unregister_node(struct node * node);
@@ -86,7 +103,19 @@ int node_module_test(void);
 void dump_nodes(FILE*fp);
 
 
-inline int deliver_mbufs_between_nodes(uint16_t dst_node,uint16_t src_node,struct rte_mbuf **mbufs,int nr_mbufs);
+__attribute__((always_inline)) static inline int deliver_mbufs_between_nodes(uint16_t dst_node,uint16_t src_node,struct rte_mbuf **mbufs,int nr_mbufs)
+{
+	int nr_delivered=0;
+	struct node* pnode_src=find_node_by_index(src_node);
+	struct node* pnode_dst=find_node_by_index(dst_node);
+
+	if(!pnode_src || !pnode_dst) 
+		goto ret;
+	nr_delivered=rte_ring_mp_enqueue_burst(pnode_dst->node_ring,(void**)mbufs,nr_mbufs);
+	ret:
+	return nr_delivered;
+}
+
 
 
 

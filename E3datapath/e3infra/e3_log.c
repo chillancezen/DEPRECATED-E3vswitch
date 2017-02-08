@@ -1,7 +1,5 @@
-#define DO_NOT_INCLUDE_FP_LOG
 #include <e3_log.h>
-#include <stdio.h>
-#include <time.h>
+
 
 FILE * fp_log=NULL;
 

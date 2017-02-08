@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <lcore_extension.h>
+
+
 struct node *gnode_array[MAX_NR_NODES];
 
 
@@ -104,21 +106,7 @@ void dump_nodes(FILE*fp)
 			gnode_array[idx]->name);
 	}
 }
-__attribute__((always_inline)) inline struct node* find_node_by_name(const char * name)
-{	
-	struct node * pnode=NULL;
-	int idx=0;
-	for(idx=0;idx<MAX_NR_NODES;idx++)
-		if(gnode_array[idx]&&!strcmp((char*)gnode_array[idx]->name,name)){
-			pnode=gnode_array[idx];
-			break;
-		}
-	return pnode;
-}
-__attribute__((always_inline)) inline struct node* find_node_by_index(int index)
-{
-	return (index>=MAX_NR_NODES)?NULL:rcu_dereference(gnode_array[index]);
-}
+
 int node_module_test(void)
 {	
 	return 0;
@@ -132,17 +120,6 @@ __attribute__((constructor)) void node_module_init(void)
 
 }
 
-__attribute__((always_inline)) inline int deliver_mbufs_between_nodes(uint16_t dst_node,uint16_t src_node,struct rte_mbuf **mbufs,int nr_mbufs)
-{
-	int nr_delivered=0;
-	struct node* pnode_src=find_node_by_index(src_node);
-	struct node* pnode_dst=find_node_by_index(dst_node);
 
-	if(!pnode_src || !pnode_dst) 
-		goto ret;
-	nr_delivered=rte_ring_mp_enqueue_burst(pnode_dst->node_ring,(void**)mbufs,nr_mbufs);
-	ret:
-	return nr_delivered;
-}
 
 

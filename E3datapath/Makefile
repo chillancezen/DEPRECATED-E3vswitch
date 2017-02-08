@@ -1,7 +1,7 @@
-COMPILE_SHARED_LIBRARY=n
+COMPILE_SHARED_LIBRARY=y
 
-DLIB_TARGET=libe3infra.so
-SLIB_TARGET=libe3infra.a
+DLIB_TARGET=libe3datapath.so
+SLIB_TARGET=libe3datapath.a
 
 HEADER=./include
 
@@ -12,12 +12,11 @@ INCLUDE += -I${RTE_SDK}/$(DPDK_ARCH)/include
 
 CCFLAG+= -g3 -Werror -Wall -fpic -O3 -m64  -march=native
 LDFLAG+= -L${RTE_SDK}/$(DPDK_ARCH)/lib
-#EXTRA_OBJS = -lrte_mbuf
 CC=gcc
 LD=ld
 
-SRC=$(wildcard src/*.c)
-SRC+=$(wildcard client/*.c)
+SRC=$(wildcard e3infra/*.c)
+SRC+= $(wildcard e3net/*.c)
 
 OBJ=$(patsubst %.c,%.o,$(SRC))
 ifeq ($(COMPILE_SHARED_LIBRARY),y)

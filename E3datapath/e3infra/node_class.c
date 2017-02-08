@@ -11,6 +11,11 @@ struct node_class * gnode_class_array[MAX_NR_NODE_CLASSES];
 int register_node_class(struct node_class *nclass)
 {
 	int idx=0;
+	if(find_node_class_by_name((char*)nclass->class_name)){
+		E3_ERROR("node class name:%s already exists\n",(char*)nclass->class_name);
+		return -1;/*node class name can not conflict*/
+	}
+	
 	for(idx=0;idx<MAX_NR_NODE_CLASSES;idx++)
 		if(gnode_class_array[idx]==nclass)
 			return -1;
@@ -38,21 +43,7 @@ void unregister_node_class(struct node_class *nclass)
 		call_rcu(&nclass->rcu,nclass->class_reclaim_func);
 }
 
-__attribute__((always_inline)) inline struct node_class * find_node_class_by_name(const char * class_name)
-{
-	struct node_class * pclass=NULL;
-	int idx=0;
-	for(idx=0;idx<MAX_NR_NODE_CLASSES;idx++)
-		if(gnode_class_array[idx]&&!strcmp((char*)gnode_class_array[idx]->class_name,class_name)){
-			pclass=gnode_class_array[idx];
-			break;
-		}
-	return pclass;
-}
-__attribute__((always_inline)) inline struct node_class* find_node_class_by_index(int index)
-{
-	return (index>=MAX_NR_NODE_CLASSES)?NULL:rcu_dereference(gnode_class_array[index]);
-}
+
 void dump_node_class(FILE* fp)
 {	
 	int idx=0;
