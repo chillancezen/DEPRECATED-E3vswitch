@@ -19,7 +19,7 @@ struct e3_lcore{
 	int attached_nodes;
 	int attached_io_nodes;
 };
-
+extern int nr_sockets;
 extern struct node * lcore_task_list[MAX_LCORE_SUPPORTED];
 int init_lcore_extension(void);
 int attach_node_to_lcore(struct node *node);
@@ -30,7 +30,11 @@ uint64_t get_lcore_task_list_base(void);
 int lcore_extension_test(void);
 
 /*lcore_task_list must be exported as an external variable*/
-
+#define foreach_numa_socket(socket_id) \
+	for((socket_id)=0; \
+	(socket_id)<nr_sockets; \
+	(socket_id)++)
+		
 #define foreach_node_in_lcore(node,lcore_id) \
 	for((node)=rcu_dereference(lcore_task_list[(lcore_id)]); \
 	(node); \

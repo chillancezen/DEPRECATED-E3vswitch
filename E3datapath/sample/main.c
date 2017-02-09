@@ -69,15 +69,34 @@ main(int argc, char **argv)
 		rte_panic("Cannot init EAL\n");
 
 	init_lcore_extension();
-
 	l2_input_early_init();
-	register_l2_input_node(-1);
+
+	
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
 	
+	
+	
+	l2_input_runtime_init();
+
+	
 	device_module_test();
-	lcore_default_entry(NULL);
+	unregister_l2_input_node("l2-input-node-0");
+	unregister_l2_input_node("l2-input-node-1");
+	
+	struct node_class *pclass=find_node_class_by_name("l2-input-class");
+	struct node_entry entry;
+	FOREACH_NODE_ENTRY_IN_CLASS_START(pclass,entry){
+		printf("%d %d\n",_index,validate_node_entry(entry));
+	}
+	FOREACH_NODE_ENTRY_IN_CLASS_END();
+	getchar();
+	
+	dump_nodes(stdout);
+	dump_node_class(stdout);
+			
+	lcore_default_entry(NULL);/*master core enters loops*/
 	while(1)
 		sleep(1);
 	rte_eal_mp_wait_lcore();

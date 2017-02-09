@@ -39,5 +39,8 @@ extern struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
 void device_module_test(void);
 
 
+#define DEVICE_NEXT_ENTRY_TO_L2_INPUT 0x0
+#define DEVICE_NEXT_ENTRY_TO_MIRROR_PORT 0x1
+
 
 #endif

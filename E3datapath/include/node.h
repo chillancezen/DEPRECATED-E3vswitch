@@ -35,7 +35,7 @@ enum node_type{
 struct next_entry{
 	uint16_t forward_behavior;
 	uint16_t reserved;
-	uint16_t last_entry_cached;
+	uint16_t last_entry_cached;/*for class edge,this is the inner array index,otherwise ,it's real node index*/
 	union{
 		uint16_t next_node;
 		uint16_t next_class;
@@ -74,6 +74,15 @@ struct node{
 
 
 extern struct node *gnode_array[MAX_NR_NODES];
+
+
+#define FOREACH_NODE_START(node) {\
+	int _index=0; \
+	for(_index=0;_index<MAX_NR_NODES;_index++){ \
+		(node)=rcu_dereference(gnode_array[_index]); \
+		if(node)
+			
+#define FOREACH_NODE_END() }}
 
 
 struct node_registery{
@@ -116,7 +125,24 @@ __attribute__((always_inline)) static inline int deliver_mbufs_between_nodes(uin
 	return nr_delivered;
 }
 
+void default_rte_reclaim_func(struct rcu_head * rcu);
+void reclaim_non_input_node_bottom_half(struct rcu_head * rcu);
 
+#define clear_node_ring_buffer(pnode) {\
+	struct rte_mbuf * mbufs[32]; \
+	int nr_bufs; \
+	int idx=0,iptr; \
+	int cnt_mbufs=0; \
+	for(idx=0;idx<DEFAULT_NR_RING_PERNODE/32;idx++){ \
+		nr_bufs=rte_ring_sc_dequeue_burst((pnode)->node_ring,(void**)mbufs,32); \
+		if(!nr_bufs) \
+			break; \
+		cnt_mbufs+=nr_bufs; \
+		for(iptr=0;iptr<nr_bufs;iptr++) \
+			rte_pktmbuf_free(mbufs[iptr]); \
+	} \
+	E3_LOG("%d mbufs in node:%s freed\n",cnt_mbufs,(pnode)->name); \
+}
 
 
 #endif

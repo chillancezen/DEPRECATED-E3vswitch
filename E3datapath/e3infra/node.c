@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <lcore_extension.h>
-
-
+#include <rte_malloc.h>
+#include <util.h>
 struct node *gnode_array[MAX_NR_NODES];
 
 
@@ -99,12 +99,12 @@ void unregister_node(struct node * node)
 
 void dump_nodes(FILE*fp)
 {
-	int idx=0;
-	for(idx=0;idx<MAX_NR_NODES;idx++){
-		if(gnode_array[idx])
-			fprintf(fp,"node :%d %s\n",gnode_array[idx]->node_index,
-			gnode_array[idx]->name);
+	struct node * pnode;
+	FOREACH_NODE_START(pnode){
+		fprintf(fp,"node :%d %s\n",pnode->node_index,
+			pnode->name);
 	}
+	FOREACH_NODE_END();
 }
 
 int node_module_test(void)
@@ -120,6 +120,18 @@ __attribute__((constructor)) void node_module_init(void)
 
 }
 
+void default_rte_reclaim_func(struct rcu_head * rcu)
+{
+	struct node * pnode=container_of(rcu,struct node,rcu);
+	rte_free(pnode);
+}
+void reclaim_non_input_node_bottom_half(struct rcu_head * rcu)
+{
+	struct node * pnode=container_of(rcu,struct node,rcu);
+	/*release rte_mbuf in node's ring*/
+	clear_node_ring_buffer(pnode);
+	unregister_node(pnode);
+}
 
 
 

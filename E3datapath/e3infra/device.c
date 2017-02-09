@@ -3,6 +3,7 @@
 #include <string.h>
 #include <rte_malloc.h>
 #include <node.h>
+#include <node_adjacency.h>
 #include <lcore_extension.h>
 
 
@@ -85,6 +86,7 @@ int output_node_process_func(void *arg)
 void input_and_output_reclaim_func(struct rcu_head * rcu)
 {/*this should be a dynamically allocated node*/
 	struct node *pnode=container_of(rcu,struct node,rcu);
+	
 	rte_free(pnode);
 }
 char * link_speed_to_string(uint32_t speed)
@@ -153,9 +155,6 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 	pinput_node->node_process_func=input_node_process_func;
 	poutput_node->node_process_func=output_node_process_func;
 
-	pinput_node->node_reclaim_func=input_and_output_reclaim_func;
-	poutput_node->node_reclaim_func=input_and_output_reclaim_func;
-
 	pinput_node->node_type=node_type_input;
 	poutput_node->node_type=node_type_output;
 
@@ -165,24 +164,27 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 	pinput_node->node_priv=pif;
 	poutput_node->node_priv=pif;
 
+	/*do not set them,let's manully reclaim them if we meet any errors during setup period*/
+    pinput_node->node_reclaim_func=NULL;
+	poutput_node->node_reclaim_func=NULL;
+	
 	if(use_dev_numa){
 		node_socket_id=rte_eth_dev_socket_id(pif->port_id);
 		dev_lcore_id=get_io_lcore_by_socket_id(node_socket_id);
 	}else{
 		dev_lcore_id=get_io_lcore();/*allocate a randomized numa and lcore*/
-		/*if(dev_lcore_id!=255)*/
 		if(validate_lcore_id(dev_lcore_id))
 			node_socket_id=lcore_to_socket_id(dev_lcore_id);
 	}
 
 	pinput_node->lcore_id=dev_lcore_id;/*arrange two nodes on the same sockets*/
-	/*if(pinput_node->lcore_id==255)*/
 	if(!validate_lcore_id(pinput_node->lcore_id))
 		goto error_node_dealloc;
+	
 	poutput_node->lcore_id=get_io_lcore_by_socket_id(node_socket_id);
-	/*if(poutput_node->lcore_id==255)*/
-	if(!validate_lcore_id(poutput_node->lcore_id))	
+	if(!validate_lcore_id(poutput_node->lcore_id)){
 		goto error_node_dealloc;
+	}
 	
 	if(register_node(pinput_node))
 		goto error_node_uninit;
@@ -252,17 +254,21 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 	/*attach node to lcore right now*/
 	rc=attach_node_to_lcore(pinput_node);
 	if(rc){
-		put_lcore(pinput_node->lcore_id,1);
 		E3_ERROR("can not attach node:%s to lcore :%d\n",pinput_node->name,pinput_node->lcore_id);
 		goto error_node_uninit;
 	}
 	rc=attach_node_to_lcore(poutput_node);
 	if(rc){
-		put_lcore(poutput_node->lcore_id,1);
 		E3_ERROR("can not attach node:%s to lcore :%d\n",poutput_node->name,poutput_node->lcore_id);
-		goto error_node_uninit;
+		goto error_node_detach;
 	}
 
+	/*set next nodes entries*/
+	rc=set_node_to_class_edge((char*)pinput_node->name,DEVICE_NEXT_ENTRY_TO_L2_INPUT,"l2-input-class");
+	if(rc){
+		E3_ERROR("can not set node:%s to class:%s edge\n",pinput_node->name,"l2-input-class");
+		goto error_node_detach;
+	}
 	pif->port_status=PORT_STATUS_DOWN;
 	rcu_assign_pointer(pif->if_avail_ptr,!(NULL));/*make this port available now*/
 	
@@ -271,14 +277,23 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 		pinput_node->lcore_id,
 		poutput_node->name,
 		poutput_node->lcore_id);
-
-	return 0;
 	
+	pinput_node->node_reclaim_func=input_and_output_reclaim_func;
+	poutput_node->node_reclaim_func=input_and_output_reclaim_func;
+	
+	return 0;
+	error_node_detach:
+		detach_node_from_lcore(pinput_node);
+		detach_node_from_lcore(poutput_node);
 	error_node_uninit:
 		unregister_node(pinput_node);
 		unregister_node(poutput_node);
-
+		
 	error_node_dealloc:
+		if(validate_lcore_id(pinput_node->lcore_id))
+			put_lcore(pinput_node->lcore_id,1);
+		if(validate_lcore_id(poutput_node->lcore_id))
+			put_lcore(poutput_node->lcore_id,1);
 		if(pinput_node)
 			rte_free(pinput_node);
 		if(poutput_node)
@@ -320,10 +335,7 @@ int find_port_id_by_ifname(const char* ifname)
 void interface_release_rcu_callback(struct rcu_head * rcu)
 {
 	char dev_name[128];
-	struct rte_mbuf * mbufs[32];
-	int nr_bufs;
-	int idx=0,iptr;
-	int cnt_mbufs=0;
+	
 	int rc;
 	struct E3interface *pif;
 	struct node * pinput_node=NULL;
@@ -332,18 +344,7 @@ void interface_release_rcu_callback(struct rcu_head * rcu)
 	pinput_node=find_node_by_index(pif->input_node);
 	poutput_node=find_node_by_index(pif->output_node);
 	/*free mbus in output node*/
-	if(poutput_node){
-		cnt_mbufs=0;
-		for(idx=0;idx<DEFAULT_NR_RING_PERNODE/32;idx++){
-			nr_bufs=rte_ring_sc_dequeue_burst(poutput_node->node_ring,(void**)mbufs,32);
-			if(!nr_bufs)
-				break;
-			cnt_mbufs+=nr_bufs;
-			for(iptr=0;iptr<nr_bufs;iptr++)
-				rte_pktmbuf_free(mbufs[iptr]);
-		}
-		E3_LOG("%d mbufs in node:%s of interface:%s freed\n",cnt_mbufs,poutput_node->name,pif->ifname);
-	}
+	clear_node_ring_buffer(poutput_node);
 	/*unregister nodes*/
 	if(pinput_node)
 		unregister_node(pinput_node);
@@ -419,11 +420,15 @@ void device_module_test(void)
 {
 	#if 1
 	register_native_dpdk_port("0000:02:01.0",0);
-	register_native_dpdk_port("0000:02:06.0",0);
-	register_native_dpdk_port("0000:02:07.0",0);
+	//register_native_dpdk_port("0000:02:06.0",0);
+	//register_native_dpdk_port("0000:02:07.0",0);
+	//getchar();
+	//unregister_native_dpdk_port(find_port_id_by_ifname("1GEthernet2/1/0"));
+	
 	#else 
 	register_native_dpdk_port("0000:01:00.0",0);
-	register_native_dpdk_port("0000:01:00.1",0);
+	//register_native_dpdk_port("0000:01:00.1",0);
+	return ;
 	getchar();
 	puts("ready:");
 	unregister_native_dpdk_port(find_port_id_by_ifname("10GEthernet1/0/0"));

@@ -11,6 +11,21 @@
 #define MAX_NODE_IN_CLASS 8
 typedef void (*node_class_rcu_callback)(struct rcu_head * rcu);
 struct node ;
+
+
+struct node_entry{
+	union{
+		void * entries_as_ptr;
+		struct {
+			uint16_t is_valid:1;
+			uint16_t node_attached_cnt:15;
+			uint16_t node_index;
+			uint32_t padding;
+		};
+	};
+};
+
+
 struct node_class{
 	uint8_t class_name[MAX_NODECLASS_NAME_LEN];
 	
@@ -19,15 +34,32 @@ struct node_class{
 	uint16_t node_class_index;
 	node_class_rcu_callback class_reclaim_func;
 	void * node_class_priv;
-	union{
-		uint64_t current_node_nr;
-		void  *  current_node_nr_as_ptr;
-	};
+	
 	__attribute__((aligned(64))) uint64_t cacheline2[0];
-	uint16_t nodes[MAX_NODE_IN_CLASS];
+	struct node_entry node_entries[MAX_NODE_IN_CLASS];
 }__attribute__((aligned(64)));
 
 extern struct node_class * gnode_class_array[MAX_NR_NODE_CLASSES];
+
+
+#define FOREACH_NODE_CLASS_START(node_class) {\
+	int _index=0; \
+	for(_index=0;_index<MAX_NR_NODES;_index++){ \
+		(node_class)=rcu_dereference(gnode_class_array[_index]); \
+		if(node_class)
+			
+#define FOREACH_NODE_CLASS_END() }}
+
+
+#define FOREACH_NODE_ENTRY_IN_CLASS_START(pclass,node_entry) {\
+	int _index=0; \
+	for(_index=0;_index<MAX_NODE_IN_CLASS;_index++) {\
+		(node_entry).entries_as_ptr=rcu_dereference((pclass)->node_entries[_index].entries_as_ptr);
+
+#define FOREACH_NODE_ENTRY_IN_CLASS_END() }}
+
+#define validate_node_entry(entry) (!!((entry).is_valid))
+
 
 int register_node_class(struct node_class *nclass);
 void unregister_node_class(struct node_class *nclass);

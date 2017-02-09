@@ -150,6 +150,10 @@ int get_io_lcore(void)
 
 void put_lcore(int lcore_id,int  is_io)
 {
+	#if defined(PRESERVE_MASTER_LCORE)
+	if(lcore_id==rte_get_master_lcore())
+		return;
+	#endif
 	if(lcore_id<0 || lcore_id>=MAX_LCORE_SUPPORTED)
 		return;
 	if(is_io)

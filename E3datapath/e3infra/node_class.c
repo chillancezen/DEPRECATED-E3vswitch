@@ -46,15 +46,13 @@ void unregister_node_class(struct node_class *nclass)
 
 void dump_node_class(FILE* fp)
 {	
-	int idx=0;
 	struct node_class * pclass=NULL;
-	for(idx=0;idx<MAX_NR_NODE_CLASSES;idx++){
-		pclass=gnode_class_array[idx];
-		if(!pclass)
-			continue;
-		fprintf(fp,"node class :%d %s\n",pclass->node_class_index,
+	FOREACH_NODE_CLASS_START(pclass){
+		fprintf(fp,"node class :%d %s\n",
+			pclass->node_class_index,
 			pclass->class_name);
 	}
+	FOREACH_NODE_CLASS_END();
 }
 
 __attribute__((constructor)) void node_class_module_init(void)
@@ -67,18 +65,27 @@ __attribute__((constructor)) void node_class_module_init(void)
 
 int _add_node_into_nodeclass(struct node_class *pclass,struct node *pnode)
 {
-	int idx=0;
-	uint64_t current_node_nr=(uint64_t)rcu_dereference((pclass->current_node_nr_as_ptr));
-	if(current_node_nr>=MAX_NODE_IN_CLASS)/*no enough room for new node*/
-		return -1;
-	for(idx=0;idx<current_node_nr;idx++)
-		if(pclass->nodes[idx]==pnode->node_index)
+	struct node_entry entry;
+	int iptr=0;
+	/*check whether node already in the class*/
+	FOREACH_NODE_ENTRY_IN_CLASS_START(pclass,entry){
+		if((entry.node_index==pnode->node_index)&&validate_node_entry(entry))
+			return -1;
+	}
+	FOREACH_NODE_ENTRY_IN_CLASS_END();
+	
+	FOREACH_NODE_ENTRY_IN_CLASS_START(pclass,entry){
+		if(!validate_node_entry(entry))
 			break;
-	if(idx<current_node_nr)/*already in the set*/
+		iptr++;
+	}
+	FOREACH_NODE_ENTRY_IN_CLASS_END();
+	if(iptr>=MAX_NODE_IN_CLASS)
 		return -2;
-	pclass->nodes[current_node_nr]=pnode->node_index;
-	current_node_nr++;
-	rcu_assign_pointer(pclass->current_node_nr_as_ptr,(void*)current_node_nr);
+	entry.is_valid=1;
+	entry.node_attached_cnt=0;
+	entry.node_index=pnode->node_index;
+	rcu_assign_pointer(pclass->node_entries[iptr].entries_as_ptr,entry.entries_as_ptr);
 	return 0;
 }
 int add_node_into_nodeclass(const char* class_name,const char* node_name)
@@ -91,18 +98,21 @@ int add_node_into_nodeclass(const char* class_name,const char* node_name)
 }
 int _delete_node_from_nodeclass(struct node_class *pclass,struct node *pnode)
 {
-	int idx=0;
-	uint64_t current_node_nr=(uint64_t)rcu_dereference((pclass->current_node_nr_as_ptr));
-	for(idx=0;idx<current_node_nr;idx++)
-		if(pclass->nodes[idx]==pnode->node_index)
+	int iptr=0;
+	struct node_entry entry;
+	FOREACH_NODE_ENTRY_IN_CLASS_START(pclass,entry){
+		if(entry.node_index==pnode->node_index)
 			break;
-	if(idx==current_node_nr)/*not found in the list*/
+		iptr++;
+	}
+	FOREACH_NODE_ENTRY_IN_CLASS_END();
+	if(iptr>=MAX_NODE_IN_CLASS)
 		return -1;
-	pclass->nodes[idx]=pclass->nodes[current_node_nr-1];
-	current_node_nr--;
-	rcu_assign_pointer(pclass->current_node_nr_as_ptr,(void*)current_node_nr);
+	entry.is_valid=0;
+	entry.node_attached_cnt=0;
+	entry.node_index=0;
+	rcu_assign_pointer(pclass->node_entries[iptr].entries_as_ptr,entry.entries_as_ptr);
 	return 0;
-	
 }
 
 int delete_node_from_nodeclass(const char* class_name,const char* node_name)
