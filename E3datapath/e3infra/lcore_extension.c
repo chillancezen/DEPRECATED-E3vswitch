@@ -263,13 +263,16 @@ int lcore_default_entry(__attribute__((unused)) void *arg)
 			pnode->node_process_func(pnode);
 			rcu_quiescent_state();
 		}
+		
 		if(cnt!=last_cnt){
 			last_cnt=cnt;
 			#if 0
 			E3_LOG("node in lcore %d:%d\n",lcore_id,cnt);
 			#endif
 		}
-		rcu_quiescent_state();
+		
+		if(cnt)
+			rcu_quiescent_state();
 	}
 	rcu_thread_offline();
 	rcu_unregister_thread();

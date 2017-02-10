@@ -11,7 +11,23 @@
 
 #define PRESERVE_MASTER_LCORE /*preserve master lcore for control plane purpose*/
 
-#define validate_lcore_id(id)   (((id)>=0)&&((id)<=MAX_LCORE_SUPPORTED))
+/*#define validate_lcore_id(id)   (((id)>=0)&&((id)<=MAX_LCORE_SUPPORTED))*/
+
+#define validate_lcore_id(id)   ({\
+	unsigned lcore_id; \
+	int is_valid=0; \
+	RTE_LCORE_FOREACH(lcore_id) \
+		if(lcore_id==id){ \
+			is_valid=1; \
+			break; \
+		} \
+	is_valid; \
+})
+			
+		
+	
+
+#define ATTACHED_NODES_PRESERVE_THRESHOLD 255
 
 struct e3_lcore{
 	int is_enabled;

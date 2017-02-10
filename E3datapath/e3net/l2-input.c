@@ -2,7 +2,7 @@
 #include <e3_log.h>
 #include <rte_malloc.h>
 #include <lcore_extension.h>
-
+#include <util.h>
 
 /*register l2-input-class */
 static struct  node_class l2_input_nclass;
@@ -23,7 +23,15 @@ void l2_input_early_init(void)
 
 int l2_input_node_process_func(void *arg)
 {
-
+	struct node * pnode=(struct node*)arg;
+	struct rte_mbuf * mbufs[64];
+	int nr_mbufs;
+	int nr_delivered=0;
+	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,(void**)mbufs,E3_MIN(pnode->burst_size,64));
+	nr_delivered=nr_delivered;
+	if(nr_mbufs)
+	printf("recv:%d\n",nr_mbufs);
+	
 	return 0;
 }
 

@@ -35,12 +35,15 @@ enum node_type{
 struct next_entry{
 	uint16_t forward_behavior;
 	uint16_t reserved;
-	uint16_t last_entry_cached;/*for class edge,this is the inner array index,otherwise ,it's real node index*/
+	int16_t last_entry_cached;/*for class edge,this is the inner array index,otherwise ,it's real node index*/
 	union{
 		uint16_t next_node;
 		uint16_t next_class;
 	};
 };
+
+
+
 struct node{
 	uint8_t name[MAX_NODENAME_LEN];
 	__attribute__((aligned(64))) uint64_t cacheline1[0];
@@ -85,9 +88,6 @@ extern struct node *gnode_array[MAX_NR_NODES];
 #define FOREACH_NODE_END() }}
 
 
-struct node_registery{
-	
-};
 /*let them to be inlined*/
 __attribute__((always_inline)) static inline struct node* find_node_by_name(const char * name)
 {	
@@ -102,7 +102,9 @@ __attribute__((always_inline)) static inline struct node* find_node_by_name(cons
 }
 __attribute__((always_inline)) static inline struct node* find_node_by_index(int index)
 {
-	return (index>=MAX_NR_NODES)?NULL:rcu_dereference(gnode_array[index]);
+	return ((index>=MAX_NR_NODES)||(index<0))?
+		NULL:
+		rcu_dereference(gnode_array[index]);
 }
 
 

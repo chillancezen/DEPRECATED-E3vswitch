@@ -78,19 +78,33 @@ main(int argc, char **argv)
 	
 	
 	
-	l2_input_runtime_init();
+	
 
 	
 	device_module_test();
+	l2_input_runtime_init();
+	getchar();
 	unregister_l2_input_node("l2-input-node-0");
+	getchar();
 	unregister_l2_input_node("l2-input-node-1");
+	#if 0
+	struct node *pnode=find_node_by_name("device-input-node-0");
+	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
+	unregister_native_dpdk_port(find_port_id_by_ifname("1GEthernet2/1/0"));
+	getchar();
+	pnode=find_node_by_name("device-input-node-1");
+	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
 	
-	struct node_class *pclass=find_node_class_by_name("l2-input-class");
-	struct node_entry entry;
-	FOREACH_NODE_ENTRY_IN_CLASS_START(pclass,entry){
-		printf("%d %d\n",_index,validate_node_entry(entry));
-	}
-	FOREACH_NODE_ENTRY_IN_CLASS_END();
+	
+	struct node *pnode=find_node_by_name("device-input-node-0");
+
+	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
+	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
+	
+	pnode=find_node_by_name("device-input-node-1");
+	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
+	#endif
+	
 	getchar();
 	
 	dump_nodes(stdout);

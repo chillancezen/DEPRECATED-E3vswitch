@@ -16,5 +16,14 @@
 		(type *)((char *)__mptr - offsetof(type, member)); })
 #endif
 
+#ifndef PREDICT_TRUE
+#define PREDICT_TRUE(exp) __builtin_expect(!!(exp),1)
+#endif
 
+#ifndef PREDICT_FALSE
+#define PREDICT_FALSE(exp) __builtin_expect(!!(exp),0)
+#endif 
+
+#define E3_MAX(a,b) (((a)>(b))?(a):(b))
+#define E3_MIN(a,b) (((a)<(b))?(a):(b))
 #endif

@@ -60,6 +60,33 @@ extern struct node_class * gnode_class_array[MAX_NR_NODE_CLASSES];
 
 #define validate_node_entry(entry) (!!((entry).is_valid))
 
+#define node_entry_at_index(pclass,idx) ({ \
+	E3_ASSERT(((idx)>=0&&(idx)<MAX_NODE_IN_CLASS)); \
+	(pclass)->node_entries[(idx)]; \
+})
+
+#define node_entry_at_index_safe(pclass,idx,entry) { \
+	E3_ASSERT(((idx)>=0&&(idx)<MAX_NODE_IN_CLASS)); \
+	(entry).entries_as_ptr=rcu_dereference((pclass)->node_entries[idx].entries_as_ptr); \
+}
+
+#define validate_node_entry_at_index(pclass,idx) (((idx)>=0) \
+	&&((idx)<MAX_NODE_IN_CLASS) \
+	&&(((pclass)->node_entries[(idx)]).is_valid))
+
+#define validate_node_entry_at_index_safe(pclass,idx) ({ \
+	struct node_entry _entry; \
+	int _range_valid=((idx)>=0)&&((idx)<MAX_NODE_IN_CLASS); \
+	if(_range_valid) \
+		_entry.entries_as_ptr=rcu_dereference((pclass)->node_entries[idx].entries_as_ptr); \
+	_range_valid&&_entry.is_valid; \
+})
+
+
+#define node_index_of_node_entry(pclass,idx) ({ \
+	E3_ASSERT(((idx)>=0&&(idx)<MAX_NODE_IN_CLASS)); \
+	(pclass)->node_entries[(idx)].node_index; \
+})
 
 int register_node_class(struct node_class *nclass);
 void unregister_node_class(struct node_class *nclass);

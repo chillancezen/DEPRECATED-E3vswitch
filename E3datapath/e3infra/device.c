@@ -33,7 +33,7 @@ int input_node_process_func(void *arg)
 	int nr_delivered;
 	int idx=0;
 	struct E3interface * pif=(struct E3interface*)pnode->node_priv;
-	nr_mbufs=rte_eth_rx_burst(pif->port_id,0,mbufs,pnode->burst_size);
+	nr_mbufs=rte_eth_rx_burst(pif->port_id,0,mbufs,E3_MIN(pnode->burst_size,64));
 	if(!nr_mbufs)
 		return 0;
 	/*loopback all the packets*/
@@ -51,10 +51,12 @@ int input_node_process_func(void *arg)
 		
 	}
 	#endif
-	nr_delivered=deliver_mbufs_between_nodes(pif->output_node,pif->input_node,mbufs,nr_mbufs);
+	nr_delivered=deliver_mbufs_by_next_entry(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT,mbufs,nr_mbufs);
+	
+	//nr_delivered=deliver_mbufs_between_nodes(pif->output_node,pif->input_node,mbufs,nr_mbufs);
 	for(idx=nr_delivered;idx<nr_mbufs;idx++)
 		rte_pktmbuf_free(mbufs[idx]);
-	#if 0
+	#if 1
 	if(nr_delivered!=nr_mbufs)
 		printf("%s remain %d unsent\n",pif->ifname,nr_mbufs-nr_delivered);
 	#endif
@@ -69,7 +71,7 @@ int output_node_process_func(void *arg)
 	int nr_xmited;
 	int idx=0;
 	struct E3interface * pif=(struct E3interface*)pnode->node_priv;
-	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,(void**)mbufs,pnode->burst_size);
+	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,(void**)mbufs,E3_MIN(pnode->burst_size,64));
 	if(!nr_mbufs)
 		return 0;
 	nr_xmited=rte_eth_tx_burst(pif->port_id,0,mbufs,nr_mbufs);
@@ -149,8 +151,8 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 		goto error_dev_detach;
 	}
 
-	sprintf((char*)pinput_node->name,"input-node-%d",port_id);
-	sprintf((char*)poutput_node->name,"output-node-%d",port_id);
+	sprintf((char*)pinput_node->name,"device-input-node-%d",port_id);
+	sprintf((char*)poutput_node->name,"device-output-node-%d",port_id);
 
 	pinput_node->node_process_func=input_node_process_func;
 	poutput_node->node_process_func=output_node_process_func;
@@ -345,6 +347,8 @@ void interface_release_rcu_callback(struct rcu_head * rcu)
 	poutput_node=find_node_by_index(pif->output_node);
 	/*free mbus in output node*/
 	clear_node_ring_buffer(poutput_node);
+	/*clear next edge entries*/
+	clean_node_next_edges((char*)pinput_node->name);
 	/*unregister nodes*/
 	if(pinput_node)
 		unregister_node(pinput_node);
@@ -420,14 +424,14 @@ void device_module_test(void)
 {
 	#if 1
 	register_native_dpdk_port("0000:02:01.0",0);
-	//register_native_dpdk_port("0000:02:06.0",0);
-	//register_native_dpdk_port("0000:02:07.0",0);
+	register_native_dpdk_port("0000:02:06.0",0);
+	register_native_dpdk_port("0000:02:07.0",0);
 	//getchar();
 	//unregister_native_dpdk_port(find_port_id_by_ifname("1GEthernet2/1/0"));
 	
 	#else 
 	register_native_dpdk_port("0000:01:00.0",0);
-	//register_native_dpdk_port("0000:01:00.1",0);
+	register_native_dpdk_port("0000:01:00.1",0);
 	return ;
 	getchar();
 	puts("ready:");
