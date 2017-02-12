@@ -13,6 +13,9 @@
 #define PORT_STATUS_UP 0x1
 #define PORT_STATUS_DOWN 0x0
 
+#define PORT_TYPE_ 0x0
+#define PORT_TYPE_VLINK 0x1
+
 struct E3interface
 {
 	uint8_t ifname[MAX_INTERFACE_NAME_LEN];
@@ -25,6 +28,7 @@ struct E3interface
 	uint8_t port_status;/*not same with status of physical link*/
 	uint8_t under_releasing;
 	
+	
 	__attribute__((aligned(64))) uint64_t cacheline2[0];
 	struct ether_addr mac_addr;
 	struct rte_eth_dev_info dev_info;
@@ -34,8 +38,6 @@ struct E3interface
 extern struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
 void unregister_native_dpdk_port(int port_id);
 int register_native_dpdk_port(const char * params,int use_dev_numa);
-
-
 
 int find_port_id_by_ifname(const char* ifname);
 

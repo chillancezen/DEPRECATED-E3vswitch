@@ -27,7 +27,8 @@
 		
 	
 
-#define ATTACHED_NODES_PRESERVE_THRESHOLD 255
+#define ATTACHED_NODES_PRESERVE_THRESHOLD 0x7fff
+
 
 struct e3_lcore{
 	int is_enabled;
@@ -37,6 +38,10 @@ struct e3_lcore{
 };
 extern int nr_sockets;
 extern struct node * lcore_task_list[MAX_LCORE_SUPPORTED];
+
+int preserve_lcore_for_io(int lcore_id);
+int preserve_lcore_for_worker(int lcore_id);
+
 int init_lcore_extension(void);
 int attach_node_to_lcore(struct node *node);
 int detach_node_from_lcore(struct node*node);

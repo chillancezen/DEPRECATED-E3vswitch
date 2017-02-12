@@ -40,16 +40,5 @@ __attribute__((always_inline)) inline static uint16_t next_forwarding_node(struc
 	return next_node;
 }
 
-__attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(struct node * pnode,int next_entry,struct rte_mbuf **mbufs,int nr_mbufs)
-{
-	int nr_delivered=0;
-	struct node * pnext=NULL;
-	pnext=find_node_by_index(next_forwarding_node(pnode,next_entry));
-	if(!pnext)
-		goto ret;
-	nr_delivered=rte_ring_mp_enqueue_burst(pnext->node_ring,(void**)mbufs,nr_mbufs);
-	ret:
-	return nr_delivered;
 
-}
 #endif

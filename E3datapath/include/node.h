@@ -114,18 +114,7 @@ int node_module_test(void);
 void dump_nodes(FILE*fp);
 
 
-__attribute__((always_inline)) static inline int deliver_mbufs_between_nodes(uint16_t dst_node,uint16_t src_node,struct rte_mbuf **mbufs,int nr_mbufs)
-{
-	int nr_delivered=0;
-	struct node* pnode_src=find_node_by_index(src_node);
-	struct node* pnode_dst=find_node_by_index(dst_node);
 
-	if(!pnode_src || !pnode_dst) 
-		goto ret;
-	nr_delivered=rte_ring_mp_enqueue_burst(pnode_dst->node_ring,(void**)mbufs,nr_mbufs);
-	ret:
-	return nr_delivered;
-}
 
 void default_rte_reclaim_func(struct rcu_head * rcu);
 void reclaim_non_input_node_bottom_half(struct rcu_head * rcu);

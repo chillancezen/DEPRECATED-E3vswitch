@@ -8,6 +8,25 @@ struct e3_lcore lcore_records[MAX_LCORE_SUPPORTED];
 struct rte_mempool * gmempool_array[MAX_SOCKET_SUPPORTED];
 int nr_sockets=0;
 
+int preserve_lcore_for_io(int lcore_id)
+{
+	if(!validate_lcore_id(lcore_id))
+		return -1;
+	lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+	E3_LOG("lcore %d is preserved exclusively for IO\n",lcore_id);
+	return 0;
+}
+
+int preserve_lcore_for_worker(int lcore_id)
+{
+	if(!validate_lcore_id(lcore_id))
+		return -1;
+	lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+	E3_LOG("lcore %d is preserved exclusively for worker\n",lcore_id);
+	return 0;
+}
+
+
 struct rte_mempool * get_mempool_by_socket_id(int socket_id)
 {
 	if(socket_id>=nr_sockets || socket_id<0)
@@ -67,6 +86,8 @@ int  get_lcore_by_socket_id(int socket_id)
 		if(lcore_id==rte_get_master_lcore())
 			continue;
 	#endif
+		if(lcore_records[lcore_id].attached_nodes==ATTACHED_NODES_PRESERVE_THRESHOLD)
+			continue;
 		if(lcore_records[lcore_id].socket_id!=socket_id)
 			continue;
 		if(target_lcore_id<0){
@@ -90,6 +111,8 @@ int  get_lcore(void)
 		if(lcore_id==rte_get_master_lcore())
 			continue;
 	#endif
+		if(lcore_records[lcore_id].attached_nodes==ATTACHED_NODES_PRESERVE_THRESHOLD)
+			continue;
 		if(target_lcore_id<0){
 			target_lcore_id=lcore_id;
 			continue;
@@ -113,6 +136,8 @@ int  get_io_lcore_by_socket_id(int socket_id)
 		if(lcore_id==rte_get_master_lcore())
 			continue;
 	#endif
+		if(lcore_records[lcore_id].attached_io_nodes==ATTACHED_NODES_PRESERVE_THRESHOLD)
+			continue;
 		if(lcore_records[lcore_id].socket_id!=socket_id)
 			continue;
 		if(target_lcore_id<0){
@@ -136,6 +161,8 @@ int get_io_lcore(void)
 		if(lcore_id==rte_get_master_lcore())
 			continue;
 	#endif
+		if(lcore_records[lcore_id].attached_io_nodes==ATTACHED_NODES_PRESERVE_THRESHOLD)
+			continue;
 		if(target_lcore_id<0){
 			target_lcore_id=lcore_id;
 			continue;

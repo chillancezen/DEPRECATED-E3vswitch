@@ -5,7 +5,7 @@
 #include <node.h>
 #include <node_adjacency.h>
 #include <lcore_extension.h>
-
+#include <mbuf_delivery.h>
 
 struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
 

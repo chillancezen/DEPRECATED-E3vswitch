@@ -52,7 +52,7 @@
 #include <device.h>
 #include <l2-input.h>
 
-
+#include <mbuf_delivery.h>
 
 
 
@@ -68,26 +68,48 @@ main(int argc, char **argv)
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
 
+	
+	
 	init_lcore_extension();
+	preserve_lcore_for_io(2);
+	preserve_lcore_for_worker(1);
 	l2_input_early_init();
 
 	
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
-	
-	
-	
-	
 
+	
 	
 	device_module_test();
 	l2_input_runtime_init();
-	getchar();
-	unregister_l2_input_node("l2-input-node-0");
-	getchar();
-	unregister_l2_input_node("l2-input-node-1");
 	#if 0
+	if (0)
+	{
+			/*express delivery framework */
+			int iptr;
+			int start_index,end_index;
+			uint64_t fwd_id=1;
+			int process_rc;
+			DEF_EXPRESS_DELIVERY_VARS();
+			RESET_EXPRESS_DELIVERY_VARS();
+			pre_setup_env(32);
+			while((iptr=peek_next_mbuf())>=0){
+				/*here to decide fwd_id*/
+				fwd_id=(iptr%4)?fwd_id:fwd_id+1;
+				process_rc=proceed_mbuf(iptr,fwd_id);
+				if(process_rc==MBUF_PROCESS_RESTART){
+					fetch_pending_index(start_index,end_index);
+					printf("handle buffer:%d-%d\n",start_index,end_index);
+					flush_pending_mbuf();
+					proceed_mbuf(iptr,fwd_id);
+				}
+				
+			}
+			fetch_pending_index(start_index,end_index);
+			printf("handle buffer:%d-%d\n",start_index,end_index);
+	}
 	struct node *pnode=find_node_by_name("device-input-node-0");
 	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
 	unregister_native_dpdk_port(find_port_id_by_ifname("1GEthernet2/1/0"));

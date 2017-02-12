@@ -3,7 +3,7 @@
 #include <rte_malloc.h>
 #include <lcore_extension.h>
 #include <util.h>
-
+#include <mbuf_delivery.h>
 /*register l2-input-class */
 static struct  node_class l2_input_nclass;
 static struct l2_input_main l2_input_main;
@@ -27,8 +27,13 @@ int l2_input_node_process_func(void *arg)
 	struct rte_mbuf * mbufs[64];
 	int nr_mbufs;
 	int nr_delivered=0;
+
+	//DEF_EXPRESS_DELIVERY_VARS();
+	//INIT_EXPRESS_DELIVERY_VARS();
 	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,(void**)mbufs,E3_MIN(pnode->burst_size,64));
 	nr_delivered=nr_delivered;
+//	pre_setup_env(mbufs,nr_mbufs);
+	
 	if(nr_mbufs)
 	printf("recv:%d\n",nr_mbufs);
 	

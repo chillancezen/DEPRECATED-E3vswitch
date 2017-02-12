@@ -14,7 +14,6 @@ struct l2_input_main{
 
 int register_l2_input_node(int socket_id);
 int unregister_l2_input_node(const char * node_name);
-
 void l2_input_runtime_init(void);
 
 
