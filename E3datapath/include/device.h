@@ -27,8 +27,11 @@ struct E3interface
 	uint16_t port_id;
 	uint8_t port_status;/*not same with status of physical link*/
 	uint8_t under_releasing;
-	
-	
+
+	/*L2 bridging related fields*/
+	uint16_t access_vlan:12;
+	struct E3interface * vlan_if_next;
+		
 	__attribute__((aligned(64))) uint64_t cacheline2[0];
 	struct ether_addr mac_addr;
 	struct rte_eth_dev_info dev_info;
@@ -36,6 +39,9 @@ struct E3interface
 };
 
 extern struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
+
+#define interface_at_index(idx) (&ginterface_array[(idx)])
+
 void unregister_native_dpdk_port(int port_id);
 int register_native_dpdk_port(const char * params,int use_dev_numa);
 

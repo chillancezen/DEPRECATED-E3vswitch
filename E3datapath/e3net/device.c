@@ -6,6 +6,7 @@
 #include <node_adjacency.h>
 #include <lcore_extension.h>
 #include <mbuf_delivery.h>
+#include <vlan-list.h>
 
 struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
 
@@ -37,7 +38,7 @@ int input_node_process_func(void *arg)
 	if(!nr_mbufs)
 		return 0;
 	/*loopback all the packets*/
-	#if 1
+	#if 0
 	for(idx=0;idx<nr_mbufs;idx++){
 		char tmp;
 		char * data=
@@ -273,6 +274,9 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 	}
 	pif->port_status=PORT_STATUS_DOWN;
 	rcu_assign_pointer(pif->if_avail_ptr,!(NULL));/*make this port available now*/
+
+	/*by default,we set interface to vlan 0*/
+	reset_interface_vlan(port_id);
 	
 	E3_LOG("add interface:%s with input-node:%s on %d and output-node:%s on %d\n",pif->ifname,
 		pinput_node->name,
@@ -382,6 +386,8 @@ void unregister_native_dpdk_port(int port_id)
 		E3_WARN("port: %d not available currently\n",port_id);
 		return ;
 	}
+	/*clean port vlan*/
+	clean_interface_vlan(port_id);
 	/*detach node from lcore first*/
 	pinput_node=find_node_by_index(pif->input_node);
 	if(!pinput_node){

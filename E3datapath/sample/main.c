@@ -51,8 +51,10 @@
 #include <lcore_extension.h>
 #include <device.h>
 #include <l2-input.h>
-
 #include <mbuf_delivery.h>
+#include <vlan-list.h>
+#include <l2fib.h>
+#include <e3_bitmap.h>
 
 
 
@@ -73,8 +75,9 @@ main(int argc, char **argv)
 	init_lcore_extension();
 	preserve_lcore_for_io(2);
 	preserve_lcore_for_worker(1);
+	l2fib_early_init();
 	l2_input_early_init();
-
+	l2_input_runtime_init();
 	
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
@@ -83,8 +86,36 @@ main(int argc, char **argv)
 	
 	
 	device_module_test();
-	l2_input_runtime_init();
+	
 	#if 0
+	struct l2fib_key key;
+	//struct l2fib_entry *fib=allocate_l2fib_entry();
+	int index=0;
+	struct l2fib_entry *entry;
+	key.vlan_id=0x235;
+	key.mac_addr[0]=0x02;
+	key.mac_addr[1]=0x12;
+	key.mac_addr[2]=0x22;
+	key.mac_addr[3]=0x32;
+	key.mac_addr[4]=0x42;
+	key.mac_addr[5]=0x52;
+	int idx=0;
+	for(idx=0;idx<33;idx++){
+		key.vlan_id++;
+		add_key_unsafe(key,idx,index,entry);
+	}
+	
+	uint16_t lst_index=key.L1_index;
+
+	key.vlan_id-=40;
+	delete_key_unsafe(key);
+	
+	foreach_key_at_list_index_start(lst_index,index,entry){
+		printf("%d %p\n",l2fib_port(entry,index),entry);
+	}
+	foreach_key_at_list_index_end();
+	
+	
 	if (0)
 	{
 			/*express delivery framework */

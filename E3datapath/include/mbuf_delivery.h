@@ -35,7 +35,7 @@ __attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(str
 	int _nr_mbufs=0; \
 	int _latest_unsent_iptr=-1; \
 	int _current_iptr=0; \
-	int _peek_iptr=0; \
+	int _peek_iptr=0; 
 /*_latest_identifier:*/
 /*1.for explicit node2node fwd,latest_identifier is next_node*/
 /*2.for next_entry(including node2node edge and node2class,edge entry is set)*/
