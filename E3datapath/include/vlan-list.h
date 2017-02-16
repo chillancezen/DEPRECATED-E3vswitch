@@ -65,7 +65,7 @@ extern struct vlan_list_header vlan_list[MAX_VLAN_RANGE];
 #define foreach_interface_in_vlan_safe(pif,vlan_id) \
 	for((pif)=rcu_dereference(vlan_list[(vlan_id)].next); \
 	(pif); \
-	(pif)=rcu_dereference((pif->vlan_if_next))) 
+	(pif)=rcu_dereference(((pif)->vlan_if_next))) 
 
 #define set_interface_vlan(iface,vlan_id) ({ \
 	delete_interface_from_vlan_list((iface),interface_at_index((iface))->access_vlan); \

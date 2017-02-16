@@ -3,14 +3,13 @@
 #include <node.h>
 #include <node_class.h>
 #include <node_adjacency.h>
+#include <util.h>
 
-__attribute__((always_inline)) static inline int deliver_mbufs_between_nodes(uint16_t dst_node,uint16_t src_node,struct rte_mbuf **mbufs,int nr_mbufs)
+__attribute__((always_inline)) static inline int deliver_mbufs_to_node(uint16_t dst_node,struct rte_mbuf **mbufs,int nr_mbufs)
 {
 	int nr_delivered=0;
-	struct node* pnode_src=find_node_by_index(src_node);
 	struct node* pnode_dst=find_node_by_index(dst_node);
-
-	if(!pnode_src || !pnode_dst) 
+	if(!pnode_dst) 
 		goto ret;
 	nr_delivered=rte_ring_mp_enqueue_burst(pnode_dst->node_ring,(void**)mbufs,nr_mbufs);
 	ret:
@@ -27,9 +26,22 @@ __attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(str
 	nr_delivered=rte_ring_mp_enqueue_burst(pnext->node_ring,(void**)mbufs,nr_mbufs);
 	ret:
 	return nr_delivered;
-
+	
 }
-
+__attribute__((always_inline)) inline static int deliver_message_to_node(
+	uint16_t dst_node,
+	void **msg,
+	int nr_bytes)
+{
+	int rc=-1;
+	struct node* pnode_dst=find_node_by_index(dst_node);
+	if(!pnode_dst) 
+		goto ret;
+	nr_bytes=ROUNDUP_BY(nr_bytes,8);
+	rc=rte_ring_mp_enqueue_bulk(pnode_dst->node_ring,msg,nr_bytes/8);
+	ret:
+	return rc;
+}
 #define DEF_EXPRESS_DELIVERY_VARS() \
 	uint64_t _latest_identifier=0;  \
 	int _nr_mbufs=0; \
@@ -54,7 +66,7 @@ __attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(str
 #define pre_setup_env(nr_mbufs_to_process) \
 	_nr_mbufs=(nr_mbufs_to_process);
 
-#define peek_next_mbuf() ( (_peek_iptr>=_nr_mbufs)?-1:_peek_iptr++)
+#define peek_next_mbuf() ((_peek_iptr>=_nr_mbufs)?-1:_peek_iptr++)
 
 #define mbufs_left_to_process() (_nr_mbufs-_peek_iptr)
 
@@ -84,6 +96,14 @@ __attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(str
 	(start)=_latest_unsent_iptr; \
 	(end)=(_latest_unsent_iptr<0)?-2:_current_iptr; \
 }
+#define fetch_pending_fwd_id(fwd_id) {\
+	(fwd_id)=_latest_identifier; \
+}
 
-
+/*clone will use the same mempool*/
+#define clone_mbufs_array(dst,src,n) ({\
+	int _idx=0; \
+	for(;(_idx<(n))&&((dst)[_idx]=rte_pktmbuf_clone((src)[_idx],(src)[_idx]->pool));_idx++); \
+	_idx;\
+})
 #endif

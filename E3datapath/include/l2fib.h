@@ -7,6 +7,8 @@
 #include <string.h>
 #include <e3_log.h>
 #include <util.h>
+#include <rte_cycles.h>
+#include <stdio.h>
 
 struct l2fib_key{
 	union{
@@ -188,4 +190,5 @@ output:index,entry
 
 void l2fib_early_init(void);
 struct l2fib_entry * allocate_l2fib_entry(void);
+void dump_l2fib(FILE* fp);
 #endif

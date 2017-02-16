@@ -37,29 +37,17 @@ int input_node_process_func(void *arg)
 	nr_mbufs=rte_eth_rx_burst(pif->port_id,0,mbufs,E3_MIN(pnode->burst_size,64));
 	if(!nr_mbufs)
 		return 0;
-	/*loopback all the packets*/
-	#if 0
-	for(idx=0;idx<nr_mbufs;idx++){
-		char tmp;
-		char * data=
-			rte_pktmbuf_mtod(mbufs[idx],char *);
-		tmp=data[0];data[0]=data[0+6];data[0+6]=tmp;
-		tmp=data[1];data[1]=data[1+6];data[1+6]=tmp;
-		tmp=data[2];data[2]=data[2+6];data[2+6]=tmp;
-		tmp=data[3];data[3]=data[3+6];data[3+6]=tmp;
-		tmp=data[4];data[4]=data[4+6];data[4+6]=tmp;
-		tmp=data[5];data[5]=data[5+6];data[5+6]=tmp;
-		
-	}
-	#endif
+	/*prefetch them,only to l2 cache*/
+	for(idx=0;idx<nr_mbufs;idx++)
+		rte_prefetch2(rte_pktmbuf_mtod(mbufs[idx],void*));
+	
 	nr_delivered=deliver_mbufs_by_next_entry(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT,mbufs,nr_mbufs);
 	
-	//nr_delivered=deliver_mbufs_between_nodes(pif->output_node,pif->input_node,mbufs,nr_mbufs);
 	for(idx=nr_delivered;idx<nr_mbufs;idx++)
 		rte_pktmbuf_free(mbufs[idx]);
-	#if 1
+	#if 0
 	if(nr_delivered!=nr_mbufs)
-		printf("%s remain %d unsent\n",pif->ifname,nr_mbufs-nr_delivered);
+		printf("%s input remain %d unsent\n",pif->ifname,nr_mbufs-nr_delivered);
 	#endif
 	
 	return 0;
@@ -432,6 +420,10 @@ void device_module_test(void)
 	register_native_dpdk_port("0000:02:01.0",0);
 	register_native_dpdk_port("0000:02:06.0",0);
 	register_native_dpdk_port("0000:02:07.0",0);
+
+	register_native_dpdk_port("eth_af_packet0,iface=vif1",0);
+	register_native_dpdk_port("eth_af_packet1,iface=vif3",0);
+	register_native_dpdk_port("eth_af_packet2,iface=vif5",0);
 	//getchar();
 	//unregister_native_dpdk_port(find_port_id_by_ifname("1GEthernet2/1/0"));
 	

@@ -55,6 +55,7 @@
 #include <vlan-list.h>
 #include <l2fib.h>
 #include <e3_bitmap.h>
+#include <l2-learn.h>
 
 
 
@@ -77,16 +78,27 @@ main(int argc, char **argv)
 	preserve_lcore_for_worker(1);
 	l2fib_early_init();
 	l2_input_early_init();
+	l2_learn_early_init();
+	
 	l2_input_runtime_init();
 	
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
 
+
 	
 	
 	device_module_test();
-	
+
+
+	//int iface=find_port_id_by_ifname("10GEthernetEth_af_packet0");
+	set_interface_vlan(find_port_id_by_ifname("10GEthernetEth_af_packet0"),1022);
+	getchar();
+	set_interface_vlan(find_port_id_by_ifname("10GEthernetEth_af_packet1"),1022);
+	getchar();
+	set_interface_vlan(find_port_id_by_ifname("10GEthernetEth_af_packet2"),1022);
+	//set_interface_vlan(iface,0);
 	#if 0
 	struct l2fib_key key;
 	//struct l2fib_entry *fib=allocate_l2fib_entry();
@@ -156,13 +168,46 @@ main(int argc, char **argv)
 	
 	pnode=find_node_by_name("device-input-node-1");
 	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
+
+		{
+			struct node*pnode_src=find_node_by_name("l2-input-node-0");
+			struct node*pnode_dst=find_node_by_name("l2-learn-node");
+			uint64_t msg[4];
+			int success;
+			int idx=0;
+			for(idx=0;idx<1024;idx++){
+			success=deliver_message_between_nodes(pnode_dst->node_index,
+				pnode_src->node_index,
+				(void**)msg,32);
+			printf("send-success:%d %d\n",idx,success);
+			if(success)
+				break;
+
+			}
+		}
 	#endif
 	
-	getchar();
+	
 	
 	dump_nodes(stdout);
 	dump_node_class(stdout);
-			
+	while(1){
+		char cmd=getchar();
+		switch(cmd)
+		{
+			case 'd':
+				unregister_native_dpdk_port(find_port_id_by_ifname("1GEthernet2/1/0"));
+				break;
+			case 'a':
+				register_native_dpdk_port("0000:02:01.0",0);
+				set_interface_vlan(find_port_id_by_ifname("1GEthernet2/1/0"),1033);
+				break;
+			default:
+
+				break;
+		}
+		dump_l2fib(stdout);
+	}
 	lcore_default_entry(NULL);/*master core enters loops*/
 	while(1)
 		sleep(1);
