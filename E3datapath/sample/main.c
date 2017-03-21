@@ -53,7 +53,7 @@
 #include <l2-input.h>
 
 #include <mbuf_delivery.h>
-
+#include <mq-device.h>
 
 
 
@@ -71,8 +71,8 @@ main(int argc, char **argv)
 	
 	
 	init_lcore_extension();
-	preserve_lcore_for_io(2);
-	preserve_lcore_for_worker(1);
+	//preserve_lcore_for_io(2);
+	//preserve_lcore_for_worker(1);
 	l2_input_early_init();
 
 	
@@ -84,6 +84,7 @@ main(int argc, char **argv)
 	
 	device_module_test();
 	l2_input_runtime_init();
+	mq_device_module_test();
 	#if 0
 	if (0)
 	{

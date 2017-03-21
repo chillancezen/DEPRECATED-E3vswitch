@@ -298,7 +298,7 @@ int lcore_default_entry(__attribute__((unused)) void *arg)
 			#endif
 		}
 		
-		if(cnt)
+		if(!cnt)
 			rcu_quiescent_state();
 	}
 	rcu_thread_offline();

@@ -32,7 +32,7 @@ int register_node(struct node *node)
 	}
 	/*alocate mempool/mem-ring resource*/
 	switch(node->node_type)
-	{
+	{
 		case node_type_input:
 			node->node_ring=NULL;
 			#if 0
@@ -133,5 +133,22 @@ void reclaim_non_input_node_bottom_half(struct rcu_head * rcu)
 	unregister_node(pnode);
 }
 
+
+void clear_node_ring_buffer(struct node * pnode) 
+{
+	struct rte_mbuf * mbufs[32]; 
+	int nr_bufs; 
+	int idx=0,iptr; 
+	int cnt_mbufs=0; 
+	for(idx=0;idx<DEFAULT_NR_RING_PERNODE/32;idx++){ 
+		nr_bufs=rte_ring_sc_dequeue_burst((pnode)->node_ring,(void**)mbufs,32); 
+		if(!nr_bufs) 
+			break; 
+		cnt_mbufs+=nr_bufs; 
+		for(iptr=0;iptr<nr_bufs;iptr++) 
+			rte_pktmbuf_free(mbufs[iptr]); 
+	} 
+	E3_LOG("%d mbufs in node:%s freed\n",cnt_mbufs,(pnode)->name); 
+}
 
 

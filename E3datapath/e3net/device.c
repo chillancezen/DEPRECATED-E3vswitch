@@ -1,3 +1,5 @@
+/*deprecated singly-queue device*/
+
 #include <device.h>
 #include <stdio.h>
 #include <string.h>
@@ -85,7 +87,7 @@ int output_node_process_func(void *arg)
 	return 0;
 }
 
-void input_and_output_reclaim_func(struct rcu_head * rcu)
+static void input_and_output_reclaim_func(struct rcu_head * rcu)
 {/*this should be a dynamically allocated node*/
 	struct node *pnode=container_of(rcu,struct node,rcu);
 	
@@ -151,8 +153,8 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 		goto error_dev_detach;
 	}
 
-	sprintf((char*)pinput_node->name,"device-input-node-%d",port_id);
-	sprintf((char*)poutput_node->name,"device-output-node-%d",port_id);
+	sprintf((char*)pinput_node->name,"dev-input-node-%d",port_id);
+	sprintf((char*)poutput_node->name,"dev-output-node-%d",port_id);
 
 	pinput_node->node_process_func=input_node_process_func;
 	poutput_node->node_process_func=output_node_process_func;
@@ -423,9 +425,12 @@ void unregister_native_dpdk_port(int port_id)
 void device_module_test(void)
 {
 	#if 1
-	register_native_dpdk_port("0000:02:01.0",0);
-	register_native_dpdk_port("0000:02:06.0",0);
-	register_native_dpdk_port("0000:02:07.0",0);
+	/*
+	register_native_dpdk_port("0000:01:00.1",0);
+	register_native_dpdk_port("0000:03:00.0",0);
+	register_native_dpdk_port("0000:03:00.1",0);
+	register_native_dpdk_port("eth_tap0,iface=tap2345",0);
+	*/
 	//getchar();
 	//unregister_native_dpdk_port(find_port_id_by_ifname("1GEthernet2/1/0"));
 	

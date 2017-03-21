@@ -14,14 +14,14 @@
 /*#define validate_lcore_id(id)   (((id)>=0)&&((id)<=MAX_LCORE_SUPPORTED))*/
 
 #define validate_lcore_id(id)   ({\
-	unsigned lcore_id; \
-	int is_valid=0; \
-	RTE_LCORE_FOREACH(lcore_id) \
-		if(lcore_id==id){ \
-			is_valid=1; \
+	unsigned _lcore_id; \
+	int _is_valid=0; \
+	RTE_LCORE_FOREACH(_lcore_id) \
+		if(_lcore_id==id){ \
+			_is_valid=1; \
 			break; \
 		} \
-	is_valid; \
+	_is_valid; \
 })
 			
 		
