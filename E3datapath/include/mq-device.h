@@ -21,6 +21,9 @@ struct mq_device_ops{
 #define DEV_PRIVATE(dev)  ((dev)->private)
 #define DEV_PRIVATE_AS_U64(dev) ((dev)->private_as_u64)
 
+int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_ops,int *pport_id);
+void unregister_native_mq_dpdk_port(int port_id);
+
 
 void mq_device_module_test(void);
 

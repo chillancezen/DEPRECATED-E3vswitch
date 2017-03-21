@@ -12,8 +12,7 @@ static void input_and_output_reclaim_func(struct rcu_head * rcu)
 	rte_free(pnode);
 }
 
-int register_native_mq_dpdk_port(const char * params,
-	struct mq_device_ops * dev_ops)
+int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_ops,int *pport_id)
 {
 	int rc,idx,iptr;
 	uint8_t port_id;
@@ -180,6 +179,7 @@ int register_native_mq_dpdk_port(const char * params,
 	/*start device*/
 	rte_eth_macaddr_get(port_id,&pif->mac_addr);
 	rc=rte_eth_dev_start(port_id);
+	
 	if(rc<0){
 		E3_ERROR("errors occur during dev startup setup phase:%s\n",params);
 		goto error_node_registration;
@@ -262,6 +262,8 @@ int register_native_mq_dpdk_port(const char * params,
 			(char*)poutput_node_array[idx]->name,
 			(int)poutput_node_array[idx]->lcore_id);
 	}
+	if(pport_id)
+		*pport_id=port_id;
 	return 0;
 	error_node_attch_lcore:
 		for(idx=0;idx<pif->nr_queues;idx++){
@@ -424,8 +426,11 @@ static int demo_input_node_process_func(void *arg)
 	if(nr_mbufs==0)
 		return 0;
 	for(idx=0;idx<nr_mbufs;idx++){
-		printf("%x\n",mbufs[idx]->packet_type);
+		printf("%d.%d(%d) %x(%x) %p\n",port_id,queue_id,rte_lcore_id(),mbufs[idx]->packet_type,
+			mbufs[idx]->hash.fdir.hash,(void*)mbufs[idx]->ol_flags);
+		rte_pktmbuf_free(mbufs[idx]);
 	}
+	
 	return 0;
 }
 static int demo_output_node_process_func(void *arg)
@@ -439,7 +444,7 @@ void mq_device_module_test(void)
 	struct mq_device_ops dev_ops={
 		.mq_device_port_type=PORT_TYPE_LB_EXTERNAL,
 		.nr_queues_to_poll=4,
-		.hash_function=ETH_MQ_RX_RSS,
+		.hash_function=ETH_RSS_IP,
 		.capability_check=dummy_cap_check,
 		.input_node_process_func=demo_input_node_process_func,
 		.output_node_process_func=demo_output_node_process_func,
@@ -452,7 +457,7 @@ void mq_device_module_test(void)
 		},
 	};
 	
-	register_native_mq_dpdk_port("0000:01:00.1",&dev_ops);
+	register_native_mq_dpdk_port("0000:01:00.1",&dev_ops,NULL);
 	#if 0
 	//register_native_mq_dpdk_port("eth_af_packet0,iface=enp0s3",&dev_ops);
 	register_native_mq_dpdk_port("0000:03:00.0",&dev_ops);

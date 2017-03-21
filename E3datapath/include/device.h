@@ -48,7 +48,8 @@ struct E3interface
 
 extern struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
 void unregister_native_dpdk_port(int port_id);
-int register_native_dpdk_port(const char * params,int use_dev_numa);
+int register_native_dpdk_port(const char * params,int use_dev_numa,int *pport_id);
+
 
 int find_port_id_by_ifname(const char* ifname);
 

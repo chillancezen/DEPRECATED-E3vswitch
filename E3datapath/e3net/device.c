@@ -119,7 +119,7 @@ char * link_speed_to_string(uint32_t speed)
 	
 	return ret;
 }
-int register_native_dpdk_port(const char * params,int use_dev_numa)
+int register_native_dpdk_port(const char * params,int use_dev_numa,int *pport_id)
 {
 	int node_socket_id=0;
 	struct node * pinput_node=NULL;
@@ -284,7 +284,8 @@ int register_native_dpdk_port(const char * params,int use_dev_numa)
 	
 	pinput_node->node_reclaim_func=input_and_output_reclaim_func;
 	poutput_node->node_reclaim_func=input_and_output_reclaim_func;
-	
+	if(pport_id)
+		*pport_id=port_id;
 	return 0;
 	error_node_detach:
 		detach_node_from_lcore(pinput_node);
