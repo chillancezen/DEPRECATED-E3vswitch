@@ -42,7 +42,7 @@ extern struct node * lcore_task_list[MAX_LCORE_SUPPORTED];
 int preserve_lcore_for_io(int lcore_id);
 int preserve_lcore_for_worker(int lcore_id);
 
-int init_lcore_extension(void);
+void init_lcore_extension(void);
 int attach_node_to_lcore(struct node *node);
 int detach_node_from_lcore(struct node*node);
 int dump_lcore_list(FILE*fp);

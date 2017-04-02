@@ -54,8 +54,11 @@
 
 #include <mbuf_delivery.h>
 #include <mq-device.h>
-
-
+#include <lb-common.h>
+#include <fast-index.h>
+#include <vip-resource.h>
+#include <init.h>
+#include <l3-interface.h>
 
 
 int
@@ -69,23 +72,153 @@ main(int argc, char **argv)
 		rte_panic("Cannot init EAL\n");
 
 	
-	
-	init_lcore_extension();
+	init_registered_tasks();
+	//init_lcore_extension();
 	//preserve_lcore_for_io(2);
 	//preserve_lcore_for_worker(1);
-	l2_input_early_init();
+	
+	//l2_input_early_init();
+	//vip_resource_early_init();
 
+	
 	
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
 
 	
+	#if 0
+
+	struct findex_2_1_6_base * base=allocate_findex_2_1_6_base();
+	E3_ASSERT(base);
+	base[5].next=allocate_findex_2_1_6_entry();
+	E3_ASSERT(base[5].next);
+	struct findex_2_1_6_entry * pentry=base[5].next;
+	pentry->tag0=0xfe;
+	#define INDEX0 13
+	#define TAG_INDEX (INDEX0/8)
+	pentry->tags[TAG_INDEX].tag1[INDEX0-8*TAG_INDEX]=0x3412;
+	pentry->tags[TAG_INDEX].tag2[INDEX0-8*TAG_INDEX]=0x0233;
+	pentry->tags[TAG_INDEX].tag3[INDEX0-8*TAG_INDEX]=0x3332;
+	pentry->values[INDEX0]=0x25df45;
+	//e3_bitmap_set_bit(pentry->tag_avail,INDEX0);
+
+	#undef INDEX0
+	#define INDEX0 14
+	#define TAG_INDEX (INDEX0/8)
+	pentry->tags[TAG_INDEX].tag1[INDEX0-8*TAG_INDEX]=0x3416;
+	pentry->tags[TAG_INDEX].tag2[INDEX0-8*TAG_INDEX]=0x0233;
+	pentry->tags[TAG_INDEX].tag3[INDEX0-8*TAG_INDEX]=0x3332;
+	pentry->values[INDEX0]=0x52584d;
+	e3_bitmap_set_bit(pentry->tag_avail,INDEX0);
+
+	
+	struct findex_2_1_6_key key;
+	key.key_index=5;
+	key.tag0=0xfe;
+	key.tag1=0x3412;
+	key.tag2=0x0233;
+	key.tag3=0x3332;
+
+	
+	printf("find-rc:%d\n",fast_index_2_1_6_item_safe(base,&key));
+	printf("find-val:%p\n",key.value_as_ptr);
+	register_native_dpdk_port("eth_tap",0,NULL);
+	register_native_dpdk_port("eth_tap",0,NULL);
+	
+
+	struct l3_interface * l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=0;
+	l3iface->if_ip_as_u32=0xe421e852;
+	register_l3_interface(l3iface);
+
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=0;
+	l3iface->if_ip_as_u32=0x25d56e2a;
+	register_l3_interface(l3iface);
+
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_VIRTUAL;
+	l3iface->lower_if_index=0;
+	l3iface->if_ip_as_u32=0x25d56e2a;
+	register_l3_interface(l3iface);
+	
+	//unregister_l3_interface(gl3if_array[0]);
+
+	foreach_phy_l3_interface_safe_start(0,l3iface){
+		printf("list:%p\n",l3iface);
+	}
+	foreach_phy_l3_interface_safe_end();
+	//
+	dump_l3_interfaces(stdout);
+	int idx=0;
+	struct virtual_ip* vip=NULL;
+	for(idx=0;idx<25;idx++){
+		vip=allocate_virtual_ip();
+		vip->ip_as_u32=0x124d54f+idx;
+		register_virtual_ip(vip);
+	}
+	
+	for(idx=20;idx<29;idx++)
+		printf("%d\n",search_virtual_ip_index(0x124d54f+idx));
+	//dump_virtual_ips(stdout);
+
+	for(idx=0;idx<1022;idx++)
+		unregister_virtual_ip(find_virtual_ip_at_index(idx));
+	dump_findex_2_2_base(ip2vip_base);
+	exit(0);
+
+	
+	int idx=0;
+	struct virtual_ip* vip=NULL;
+	
+	for(idx=0;idx<1300;idx++){
+		vip=allocate_virtual_ip();
+		vip->ip_as_u32=0x124d54f+idx;
+		register_virtual_ip(vip);
+	}
+	for(idx=100;idx<1022;idx++)
+		unregister_virtual_ip(find_virtual_ip_at_index(idx));
+	
+	getchar();
+	dump_virtual_ips(stdout);
+	struct findex_2_2_base * base=allocate_findex_2_2_base();
+	struct findex_2_2_key key;
+	int idx=0;
+	key.key_tag=0x23;
+	key.value_as_u64=0x232;
+	for(idx=0;idx<64;idx++){
+		key.key_index=0x233;
+		key.key_tag++;
+		key.value_as_u64++;
+		add_index_2_2_item_unsafe(base,&key);
+	}
+
+	
+	key.key_tag=0x23;
+	key.value_as_u64=0x232;
+	for(idx=0;idx<85;idx++){
+		
+		key.key_index=0x233;
+		key.key_tag++;
+		key.value_as_u64++;
+		if(idx==43)
+			continue;
+		delete_index_2_2_item_unsafe(base,&key);
+	}
+	
+	int rc=fast_index_2_2_item_safe(base,&key);
+	printf("%d %p\n",rc,key.value_as_ptr);
+
+	dump_findex_2_2_base(base);
+	
 	
 	device_module_test();
 	l2_input_runtime_init();
 	mq_device_module_test();
-	#if 0
+	
 	if (0)
 	{
 			/*express delivery framework */

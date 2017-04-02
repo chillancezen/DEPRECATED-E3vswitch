@@ -418,18 +418,22 @@ static int demo_input_node_process_func(void *arg)
 	int nr_mbufs;
 	int port_id;
 	int queue_id;
-	int idx=0;
+	int idx=0,rc;
 	struct node * pnode=(struct node *)arg;
 	port_id=(int)HIGH_UINT64((uint64_t)pnode->node_priv);
 	queue_id=(int)LOW_UINT64((uint64_t)pnode->node_priv);
 	nr_mbufs=rte_eth_rx_burst(port_id,queue_id,mbufs,64);
 	if(nr_mbufs==0)
 		return 0;
+	/*
 	for(idx=0;idx<nr_mbufs;idx++){
 		printf("%d.%d(%d) %x(%x) %p\n",port_id,queue_id,rte_lcore_id(),mbufs[idx]->packet_type,
 			mbufs[idx]->hash.fdir.hash,(void*)mbufs[idx]->ol_flags);
-		rte_pktmbuf_free(mbufs[idx]);
 	}
+	*/
+	rc=rte_eth_tx_burst(port_id,queue_id,mbufs,nr_mbufs);
+	for(idx=rc;idx<nr_mbufs;idx++)
+		rte_pktmbuf_free(mbufs[idx]);
 	
 	return 0;
 }
@@ -464,9 +468,15 @@ void mq_device_module_test(void)
 	//register_native_dpdk_port("eth_af_packet0,iface=enp0s3",1);
 
 	getchar();
-	unregister_native_mq_dpdk_port(find_port_id_by_ifname("10GEthernetTap0"));
+	
 	getchar();
 	register_native_mq_dpdk_port("eth_tap0,iface=tap0",&dev_ops);
 	#endif
+	getchar();
+	
+	unregister_native_mq_dpdk_port(find_port_id_by_ifname("10GEthernet0000/01/00/1"));
+
+	getchar();
+	register_native_mq_dpdk_port("0000:01:00.1",&dev_ops,NULL);
 }
 

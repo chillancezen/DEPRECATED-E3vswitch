@@ -4,6 +4,7 @@
 #include <lcore_extension.h>
 #include <util.h>
 #include <mbuf_delivery.h>
+#include <init.h>
 /*register l2-input-class */
 static struct  node_class l2_input_nclass;
 static struct l2_input_main l2_input_main;
@@ -20,6 +21,8 @@ void l2_input_early_init(void)
 	E3_ASSERT(find_node_class_by_name("l2-input-class")==&l2_input_nclass);
 	E3_LOG("register node class:%s\n",l2_input_nclass.class_name);
 }
+E3_init(l2_input_early_init,TASK_PRIORITY_LOW);
+
 
 int l2_input_node_process_func(void *arg)
 {

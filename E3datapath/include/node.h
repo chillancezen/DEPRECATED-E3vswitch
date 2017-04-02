@@ -1,7 +1,6 @@
 #ifndef _NODE_H
 #define _NODE_H
 #include <inttypes.h>
-#include <rte_config.h>
 #include <rte_mbuf.h>
 #include <rte_ring.h>
 #include <rte_mempool.h>

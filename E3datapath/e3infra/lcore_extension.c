@@ -2,7 +2,7 @@
 #include <e3_log.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <init.h>
 struct node * lcore_task_list[MAX_LCORE_SUPPORTED];
 struct e3_lcore lcore_records[MAX_LCORE_SUPPORTED];
 struct rte_mempool * gmempool_array[MAX_SOCKET_SUPPORTED];
@@ -53,7 +53,7 @@ int _init_per_socket_mempool(void)
 }
 
 /*extension of DPDK eal init,should be called immediately after rte_eal_init()*/
-int init_lcore_extension(void)
+void init_lcore_extension(void)
 {
 	unsigned lcore_id;
 	int max_socket=0;
@@ -69,9 +69,10 @@ int init_lcore_extension(void)
 	nr_sockets=max_socket+1;
 	E3_ASSERT(nr_sockets<=MAX_SOCKET_SUPPORTED);
 	_init_per_socket_mempool();
-	return 0;
 	
 }
+E3_init(init_lcore_extension,TASK_PRIORITY_HIGH);
+
 inline int  lcore_to_socket_id(int lcore_id)
 {
 	return rte_lcore_to_socket_id(lcore_id);
