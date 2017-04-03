@@ -85,9 +85,95 @@ main(int argc, char **argv)
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
+	struct findex_2_1_6_base * base=allocate_findex_2_1_6_base();
+	E3_ASSERT(base);
+	struct findex_2_1_6_key key;
+	key.key_index=0x3;
+	key.tag0=0x23;
+	key.tag1=0x2564;
+	key.tag2=0x1f2e;
+	key.tag3=0x2530;
+	key.value_as_u64=0x23564fd;
+	add_index_2_1_6_item_unsafe(base,&key);
+
+	key.key_index=0x3;
+	key.tag0=0x23;
+	key.tag1=0x2564;
+	key.tag2=0x1f2e;
+	key.tag3=0x2531;
+	key.value_as_u64=0x23564fd;
+	add_index_2_1_6_item_unsafe(base,&key);
+
+	key.key_index=0x3;
+	key.tag0=0x25;
+	key.tag1=0x2564;
+	key.tag2=0x12fd;
+	key.tag3=0x2531;
+	key.value_as_u64=0x245d4;
+	add_index_2_1_6_item_unsafe(base,&key);
 
 	
+	dump_findex_2_1_6_base(base);
+	
+	key.key_index=0x3;
+	key.tag0=0x23;
+	key.tag1=0x2564;
+	key.tag2=0x1f2e;
+	key.tag3=0x2530;
+	delete_index_2_1_6_item_unsafe(base,&key);
+
+	key.key_index=0x3;
+	key.tag0=0x23;
+	key.tag1=0x2564;
+	key.tag2=0x1f2e;
+	key.tag3=0x2531;
+	delete_index_2_1_6_item_unsafe(base,&key);
+
+	key.key_index=0x3;
+	key.tag0=0x25;
+	key.tag1=0x2564;
+	key.tag2=0x12fd;
+	key.tag3=0x2531;
+	delete_index_2_1_6_item_unsafe(base,&key);
+
+	dump_findex_2_1_6_base(base);
+	
+	
 	#if 0
+	struct findex_2_1_6_base * base=allocate_findex_2_1_6_base();
+		E3_ASSERT(base);
+		base[5].next=allocate_findex_2_1_6_entry();
+		E3_ASSERT(base[5].next);
+		struct findex_2_1_6_entry * pentry=base[5].next;
+		pentry->tag0=0x12;
+	#define INDEX0 13
+	#define TAG_INDEX (INDEX0/16)
+		pentry->tags[TAG_INDEX].tag1[INDEX0-16*TAG_INDEX]=0x3412;
+		pentry->tags[TAG_INDEX].tag2[INDEX0-16*TAG_INDEX]=0x0233;
+		pentry->tags[TAG_INDEX].tag3[INDEX0-816*TAG_INDEX]=0x3332;
+		pentry->values[INDEX0]=0x25df45;
+		//e3_bitmap_set_bit(pentry->tag_avail,INDEX0);
+	
+	
+		
+	#define INDEX0 47
+	#define TAG_INDEX (INDEX0/16)
+			pentry->tags[TAG_INDEX].tag1[INDEX0-16*TAG_INDEX]=0x3412;
+			pentry->tags[TAG_INDEX].tag2[INDEX0-16*TAG_INDEX]=0x0233;
+			pentry->tags[TAG_INDEX].tag3[INDEX0-16*TAG_INDEX]=0x3332;
+			pentry->values[INDEX0]=0x25dddff;
+			e3_bitmap_set_bit(pentry->tag_avail,INDEX0);
+	
+		struct findex_2_1_6_key key;
+		key.key_index=5;
+		key.tag0=0x12;
+		key.tag1=0x3412;
+		key.tag2=0x0233;
+		key.tag3=0x3332;
+	
+		
+		printf("find-rc:%d\n",fast_index_2_1_6_item_safe(base,&key));
+		printf("find-val:%p\n",key.value_as_ptr);
 
 	struct findex_2_1_6_base * base=allocate_findex_2_1_6_base();
 	E3_ASSERT(base);

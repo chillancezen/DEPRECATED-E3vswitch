@@ -43,23 +43,34 @@ __attribute__((always_inline)) static inline
 	int idx=0;
 	int found_index,local_index;
 	int index_base=0;
+	e3_bitmap cmp_rc;
+	#if defined(__AVX2__)
+	__m256i ymm_tags;
+	__m256i ymm_target;
+	__m256i ymm_tags_cmp_rc;
+	__m256i ymm_shuffle_mask;
+	ymm_target=_mm256_set1_epi16(key->key_tag);
+	ymm_shuffle_mask=_mm256_set_epi8(
+		0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+		15,13,11,9,7,5,3,1,
+		0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
+		15,13,11,9,7,5,3,1);
+	#define PERMUTATION_MASK (0|(2<<2)|(1<<4)|(3<<6))
+	#elif defined(__SSE4_1__)
+	__m128i xmm_tags;
+	__m128i xmm_target;
+	__m128i xmm_tags_cmp_rc;
+	__m128i xmm_shuffle_mask;
+	xmm_target=_mm_set1_epi16(key->key_tag);
+	xmm_shuffle_mask=_mm_set_epi8(
+		0xff,0xff,0xff,0xff,
+		0xff,0xff,0xff,0xff,
+		15,13,11,9,
+		7,5,3,1);
+	#endif
 	struct findex_2_2_entry * pentry=rcu_dereference(base[key->key_index].next);
 	for(;pentry;pentry=rcu_dereference(pentry->next_entry)){
 		#if defined(__AVX2__)
-		__m256i ymm_tags;
-		__m256i ymm_target;
-		__m256i ymm_tags_cmp_rc;
-	
-		__m256i ymm_shuffle_mask;
-		e3_bitmap cmp_rc;
-		ymm_target=_mm256_set1_epi16(key->key_tag);
-		ymm_shuffle_mask=_mm256_set_epi8(
-			0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-			15,13,11,9,7,5,3,1,
-			0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-			15,13,11,9,7,5,3,1);
-		#define PERMUTATION_MASK (0|(2<<2)|(1<<4)|(3<<6))
-			
 		for(idx=0,index_base=0;ret&&(idx<3);idx++,index_base+=16){
 			ymm_tags=_mm256_load_si256((__m256i*)(idx*32+(char*)pentry->tags));
 			ymm_tags_cmp_rc=_mm256_cmpeq_epi16(ymm_tags,ymm_target);
@@ -80,17 +91,6 @@ __attribute__((always_inline)) static inline
 			
 		}
 		#elif defined(__SSE4_1__)
-		__m128i xmm_tags;
-		__m128i xmm_target;
-		__m128i xmm_tags_cmp_rc;
-		__m128i xmm_shuffle_mask;
-		e3_bitmap cmp_rc;
-		xmm_target=_mm_set1_epi16(key->key_tag);
-		xmm_shuffle_mask=_mm_set_epi8(
-			0xff,0xff,0xff,0xff,
-			0xff,0xff,0xff,0xff,
-			15,13,11,9,
-			7,5,3,1);
 		for(idx=0,index_base=0;ret&&(idx<6);idx++,index_base+=8){
 			xmm_tags=_mm_load_si128((__m128i *)(idx*16+(char*)pentry->tags));
 			xmm_tags_cmp_rc=_mm_cmpeq_epi16(xmm_tags,xmm_target);
@@ -128,6 +128,7 @@ void delete_index_2_2_item_unsafe(struct findex_2_2_base* base,struct findex_2_2
 
 /*todo:tunnel+mac to keys*/
 /*port 1,2_1_6 fast indexing which maps 24-bits tunnel id  plus 48-bit mac into lb instance*/
+#define FINDEX_2_1_6_TAGS_LENGTH 48
 #if defined(__AVX2__)
 
 struct findex_2_1_6_tag_block{
@@ -230,7 +231,7 @@ static inline int fast_index_2_1_6_item_safe(struct findex_2_1_6_base * base,str
 		if(key->tag0!=pentry->tag0)
 			continue;
 		#if defined(__AVX2__)
-		for(idx=0,index_base=0;idx<MAX_TAGS_NR_OF_ENTRY;idx++,index_base+=16){
+		for(idx=0,index_base=0;(ret)&&(idx<MAX_TAGS_NR_OF_ENTRY);idx++,index_base+=16){
 			ymm_tag1=_mm256_load_si256((__m256i*)pentry->tags[idx].tag1);
 			ymm_tag2=_mm256_load_si256((__m256i*)pentry->tags[idx].tag2);
 			ymm_tag3=_mm256_load_si256((__m256i*)pentry->tags[idx].tag3);
@@ -244,6 +245,15 @@ static inline int fast_index_2_1_6_item_safe(struct findex_2_1_6_base * base,str
 			cmp_rc=_mm256_movemask_epi8(ymm_cmp_rc);
 			if(!cmp_rc)
 				continue;
+			e3_bitmap_foreach_set_bit_start(cmp_rc,local_index){
+				found_index=index_base+local_index;
+				ret=!e3_bitmap_is_bit_set(pentry->tag_avail,found_index);
+				if(!ret){
+					key->value_as_u64=pentry->values[found_index];
+					break;
+				}
+			}
+			e3_bitmap_foreach_set_bit_end();
 			
 		}
 		#elif defined (__SSE4_1__)
@@ -281,6 +291,11 @@ static inline int fast_index_2_1_6_item_safe(struct findex_2_1_6_base * base,str
 
 struct findex_2_1_6_base *allocate_findex_2_1_6_base(void);
 struct findex_2_1_6_entry * allocate_findex_2_1_6_entry(void);
+int add_index_2_1_6_item_unsafe(struct findex_2_1_6_base * base,struct findex_2_1_6_key * key);
+void dump_findex_2_1_6_base(struct findex_2_1_6_base * base);
+void delete_index_2_1_6_item_unsafe(struct findex_2_1_6_base * base,struct findex_2_1_6_key * key);
+
+
 
 
 #endif
