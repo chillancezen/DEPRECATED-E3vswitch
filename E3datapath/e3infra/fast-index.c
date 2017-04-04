@@ -267,7 +267,6 @@ void dump_findex_2_1_6_base(struct findex_2_1_6_base * base)
 void findex_2_1_6_entry_rcu_callback(struct rcu_head * rcu)
 {
 	struct findex_2_1_6_entry * entry=container_of(rcu,struct findex_2_1_6_entry,rcu);
-	printf("release:%p\n",entry);
 	rte_free(entry);
 }
 void delete_index_2_1_6_item_unsafe(struct findex_2_1_6_base * base,struct findex_2_1_6_key * key)

@@ -48,7 +48,7 @@ int register_l3_interface(struct l3_interface * l3iface)
 		}
 	}
 	idx=0;
-	for(;(gl3if_array[idx])&&(idx<MAX_L3_INTERFACE_NR);idx++);
+	for(;(idx<MAX_L3_INTERFACE_NR)&&(gl3if_array[idx]);idx++);
 	if(idx>=MAX_L3_INTERFACE_NR){
 		E3_ERROR("l3 interface registration fails due to MAX_L3_INTERFACE_NR=%d\n",MAX_L3_INTERFACE_NR);
 		return -4;

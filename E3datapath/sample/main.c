@@ -59,7 +59,7 @@
 #include <vip-resource.h>
 #include <init.h>
 #include <l3-interface.h>
-
+#include <real-server.h>
 
 int
 main(int argc, char **argv)
@@ -85,6 +85,29 @@ main(int argc, char **argv)
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
+	
+	
+	#if 0
+		int rc;
+	struct real_server * rs;
+	int idx=0;
+	for(idx=0;idx<128;idx++){
+		rs=allocate_real_server();
+			E3_ASSERT(rs);
+		rs->tunnel_id=0x23df4c+idx;
+		rs->rs_mac[0]=0x03;
+		rs->rs_mac[1]=0x5d;
+		rs->rs_mac[2]=0xfa;
+		rs->rs_mac[3]=0x23;
+		rs->rs_mac[4]=0x8f;
+		rs->rs_mac[5]=0x4f;
+		rc=register_real_server(rs);
+	}
+	for(idx=20;idx<1010;idx++){
+		unregister_real_server(find_real_server_at_index(idx));
+	}
+	dump_real_servers(stdout);
+	dump_findex_2_1_6_base(rs_base);
 	struct findex_2_1_6_base * base=allocate_findex_2_1_6_base();
 	E3_ASSERT(base);
 	struct findex_2_1_6_key key;
@@ -137,9 +160,6 @@ main(int argc, char **argv)
 	delete_index_2_1_6_item_unsafe(base,&key);
 
 	dump_findex_2_1_6_base(base);
-	
-	
-	#if 0
 	struct findex_2_1_6_base * base=allocate_findex_2_1_6_base();
 		E3_ASSERT(base);
 		base[5].next=allocate_findex_2_1_6_entry();

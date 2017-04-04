@@ -34,7 +34,7 @@ int register_virtual_ip(struct virtual_ip *vip)
 	}
 	/*find a new slot*/
 	idx=0;
-	for(;(gvip_array[idx])&&(idx<MAX_VIP_NR);idx++);
+	for(;(idx<MAX_VIP_NR)&&(gvip_array[idx]);idx++);
 	if(idx>=MAX_VIP_NR)
 		return -3;
 	vip->local_index=idx;
@@ -60,7 +60,7 @@ void unregister_virtual_ip(struct virtual_ip *vip)
 	if(!vip)
 		return ;
 	fkey.key_as_u32=vip->ip_as_u32;
-	for(;(gvip_array[idx]!=vip)&&(idx<MAX_VIP_NR);idx++);
+	for(;(idx<MAX_VIP_NR)&&(gvip_array[idx]!=vip);idx++);
 	
 	if(idx<MAX_VIP_NR){
 		delete_index_2_2_item_unsafe(ip2vip_base,&fkey);
