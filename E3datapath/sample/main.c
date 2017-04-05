@@ -60,6 +60,7 @@
 #include <init.h>
 #include <l3-interface.h>
 #include <real-server.h>
+#include <lb-instance.h>
 
 int
 main(int argc, char **argv)
@@ -85,9 +86,38 @@ main(int argc, char **argv)
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
+		struct lb_instance * lb=allocate_lb_instance("lb-test");
+		E3_ASSERT(lb);
+		int rc=register_lb_instance(lb);
+		printf("reg:%d %d\n",rc,lb->local_index);
 	
+		lb=allocate_lb_instance("lb-test1");
+		rc=register_lb_instance(lb);
+		printf("reg:%d %d\n",rc,lb->local_index);
+
+		unregister_lb_instance(find_lb_instance_by_name("lb-test1"));
+		dump_lb_instances(stdout);
 	
 	#if 0
+	struct lb_instance * lb=allocate_lb_instance("lb-test");
+	E3_ASSERT(lb);
+
+	int rc=register_lb_instance(lb);
+	printf("reg:%d %d\n",rc,lb->local_index);
+
+	lb=allocate_lb_instance("lb-test1");
+	rc=register_lb_instance(lb);
+	printf("reg:%d %d\n",rc,lb->local_index);
+
+	char buffer[64];
+	int idx=0;
+	for(idx=0;idx<256;idx++){
+		memset(buffer,0x0,sizeof(buffer));
+		sprintf(buffer,"test-lb-%d",idx);
+		lb=allocate_lb_instance(buffer);
+		rc=register_lb_instance(lb);
+		printf("reg:%d %d %d\n",idx,rc,lb->local_index);
+	}
 		int rc;
 	struct real_server * rs;
 	int idx=0;

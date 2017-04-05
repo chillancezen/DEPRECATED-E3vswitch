@@ -4,7 +4,10 @@
 #include <e3_log.h>
 #include <util.h>
 #include <urcu-qsbr.h>
+
 #define __key
+#define __foreign
+
 /*all data structure is in network byte order*/
 struct virtual_ip{
 	union{/*VIP structure*/
@@ -29,7 +32,7 @@ struct virtual_ip{
 	uint16_t local_index;
 	uint16_t phy_if_index;
 	uint16_t vir_if_index;
-	uint16_t lb_instance_index;
+	uint16_t __foreign lb_instance_index;
 	
 }__attribute__((aligned(64)));
 
@@ -66,12 +69,22 @@ struct l3_interface{
 	struct rcu_head rcu;
 	void (*l3iface_reclaim_function)(struct rcu_head*);
 }__attribute__((aligned(64)));
-#define MAX_MEMBER_LENTTH 256
+
+#define MAX_MEMBER_LENGTH 128
+#define INDIRECTION_TABLE_MASK (MAX_MEMBER_LENTTH-1)
 
 struct lb_instance{
-	
+	uint16_t indirection_table[MAX_MEMBER_LENGTH];
+	/*analogous to RSS indirection table,
+	the entry is member index number*/
+	uint16_t real_servers[MAX_MEMBER_LENGTH];
+
+	struct rcu_head rcu;
+	void (*lb_instance_reclaim_func)(struct rcu_head*);
 	uint16_t vip_index;
-	uint16_t members[MAX_MEMBER_LENTTH];
+	uint16_t nr_real_servers;
+	uint16_t local_index;
+	uint8_t name[64];
 };
 #define as_u8(oct) (0xff&(uint8_t)(oct))
 #define as_u32(oct) (0xffffffff&(uint32_t)(oct))

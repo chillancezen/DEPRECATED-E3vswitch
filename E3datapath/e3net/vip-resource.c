@@ -8,6 +8,7 @@ struct findex_2_2_base * ip2vip_base;
 
 void vip_resource_early_init(void)
 {
+	
 	ip2vip_base=allocate_findex_2_2_base();
 	E3_ASSERT(ip2vip_base);
 	E3_LOG("vip fast index table established\n");
