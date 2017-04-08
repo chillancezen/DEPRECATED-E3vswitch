@@ -31,4 +31,8 @@
 #define HIGH_UINT64(v) (((uint64_t)(v)>>32)&0xffffffff)
 #define LOW_UINT64(v) (((uint64_t)(v))&0xffffffff)
 
+#define MAKE_UINT32(hi,lo) ((((uint32_t)(hi))<<16)|(((uint32_t)(lo))&0xffff))
+#define LOW_UINT32(v) ((uint16_t)((v)&0xffff))
+#define HIGH_UINT32(v) ((uint16_t)(((v)>>16)&0xffff))
+
 #endif

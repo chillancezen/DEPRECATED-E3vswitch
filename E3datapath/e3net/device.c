@@ -119,14 +119,15 @@ char * link_speed_to_string(uint32_t speed)
 	
 	return ret;
 }
-int register_native_dpdk_port(const char * params,int use_dev_numa,int *pport_id)
+int register_native_dpdk_port(const char * params,struct device_ops * ops,int *pport_id)
 {
+	int use_dev_numa=0;
 	int node_socket_id=0;
 	struct node * pinput_node=NULL;
 	struct node * poutput_node=NULL;
 	struct E3interface *pif;
 	struct rte_mempool * mempool=NULL;
-	int rc;
+	int rc,idx;
 	uint8_t  port_id;
 	uint8_t  dev_lcore_id=0;
 	char  dev_data_name[64];
@@ -139,12 +140,18 @@ int register_native_dpdk_port(const char * params,int use_dev_numa,int *pport_id
 	}
 	
 	pif=&ginterface_array[port_id];
+	pif->port_type=ops->device_port_type;
 	pif->port_id=port_id;
 	rte_eth_dev_info_get(port_id,&pif->dev_info);
 	rte_eth_link_get_nowait(port_id,&pif->link_info);
 	rte_eth_macaddr_get(port_id,&pif->mac_addr);
-	
 
+	rc=ops->capability_check(port_id);
+	if(rc){
+		E3_ERROR("device capability check fails\n");
+		goto error_dev_detach;
+	}
+	
 	/*setup input nodes for this Ethernet device*/
 	pinput_node=rte_zmalloc(NULL,sizeof(struct node),64);
 	poutput_node=rte_zmalloc(NULL,sizeof(struct node),64);
@@ -153,11 +160,12 @@ int register_native_dpdk_port(const char * params,int use_dev_numa,int *pport_id
 		goto error_dev_detach;
 	}
 
+	
 	sprintf((char*)pinput_node->name,"dev-input-node-%d",port_id);
 	sprintf((char*)poutput_node->name,"dev-output-node-%d",port_id);
 
-	pinput_node->node_process_func=input_node_process_func;
-	poutput_node->node_process_func=output_node_process_func;
+	pinput_node->node_process_func=ops->input_node_process_func;
+	poutput_node->node_process_func=ops->output_node_process_func;
 
 	pinput_node->node_type=node_type_input;
 	poutput_node->node_type=node_type_output;
@@ -268,10 +276,27 @@ int register_native_dpdk_port(const char * params,int use_dev_numa,int *pport_id
 	}
 
 	/*set next nodes entries*/
+	#if 0
 	rc=set_node_to_class_edge((char*)pinput_node->name,DEVICE_NEXT_ENTRY_TO_L2_INPUT,"l2-input-class");
 	if(rc){
 		E3_ERROR("can not set node:%s to class:%s edge\n",pinput_node->name,"l2-input-class");
 		goto error_node_detach;
+	}
+	#endif
+	for(idx=0;idx<ops->predefined_edges;idx++){
+		switch(ops->edges[idx].fwd_behavior)
+		{
+			case NODE_TO_CLASS_FWD:
+				set_node_to_class_edge((char*)pinput_node->name,
+					ops->edges[idx].edge_entry,
+					ops->edges[idx].next_ref);
+				break;
+			case NODE_TO_NODE_FWD:
+				set_node_to_node_edge((char*)pinput_node->name,
+					ops->edges[idx].edge_entry,
+					ops->edges[idx].next_ref);
+				break;
+		}
 	}
 	pif->port_status=PORT_STATUS_DOWN;
 	rcu_assign_pointer(pif->if_avail_ptr,!(NULL));/*make this port available now*/
@@ -423,9 +448,26 @@ void unregister_native_dpdk_port(int port_id)
 	call_rcu(&pif->rcu,interface_release_rcu_callback);
 	
 }
+int dummy_check(int port)
+{
+	return 0;
+}
+struct device_ops ops={
+		.device_port_type=PORT_TYPE_LB_INTERNAL,
+		.capability_check=dummy_check,
+		.input_node_process_func=input_node_process_func,
+		.output_node_process_func=output_node_process_func,
+		.predefined_edges=0,
+	};
+
 void device_module_test(void)
 {
+
+
+	
 	#if 1
+	
+	register_native_dpdk_port("eth_tap",&ops,NULL);
 	/*
 	register_native_dpdk_port("0000:01:00.1",0);
 	register_native_dpdk_port("0000:03:00.0",0);

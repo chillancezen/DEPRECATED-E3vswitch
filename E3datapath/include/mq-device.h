@@ -2,11 +2,7 @@
 #define _MQ_DEVICE_H
 #include <device.h>
 
-struct next_edge_item{
-	uint16_t fwd_behavior;
-	int edge_entry;
-	char* next_ref;
-};
+
 struct mq_device_ops{
 	int mq_device_port_type;
 	int nr_queues_to_poll;

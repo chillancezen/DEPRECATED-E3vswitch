@@ -1,7 +1,7 @@
 COMPILE_SHARED_LIBRARY=y
 
-DLIB_TARGET=libe3datapath.so
-SLIB_TARGET=libe3datapath.a
+DLIB_TARGET=libe3datapath.so 
+SLIB_TARGET=libe3datapath.a 
 
 HEADER=./include
 

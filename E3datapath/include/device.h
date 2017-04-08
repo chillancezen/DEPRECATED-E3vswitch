@@ -46,14 +46,27 @@ struct E3interface
 	struct rte_eth_link link_info;
 };
 
+struct next_edge_item{
+	uint16_t fwd_behavior;
+	int edge_entry;
+	char* next_ref;
+};
+
+struct device_ops{
+	uint8_t device_port_type;
+	int (*capability_check)(int);
+	int (*input_node_process_func)(void *arg);
+	int (*output_node_process_func)(void *arg);
+	int predefined_edges;
+	struct next_edge_item edges[8];
+};
+
 extern struct E3interface ginterface_array[RTE_MAX_ETHPORTS];
 void unregister_native_dpdk_port(int port_id);
-int register_native_dpdk_port(const char * params,int use_dev_numa,int *pport_id);
-
-
+int register_native_dpdk_port(const char * params,struct device_ops * ops,int *pport_id);
 int find_port_id_by_ifname(const char* ifname);
-
 void device_module_test(void);
+
 
 
 #define DEVICE_NEXT_ENTRY_TO_L2_INPUT 0x0

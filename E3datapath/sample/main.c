@@ -77,7 +77,6 @@ main(int argc, char **argv)
 	//init_lcore_extension();
 	//preserve_lcore_for_io(2);
 	//preserve_lcore_for_worker(1);
-	
 	//l2_input_early_init();
 	//vip_resource_early_init();
 
@@ -86,19 +85,22 @@ main(int argc, char **argv)
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
-		struct lb_instance * lb=allocate_lb_instance("lb-test");
-		E3_ASSERT(lb);
-		int rc=register_lb_instance(lb);
-		printf("reg:%d %d\n",rc,lb->local_index);
 	
-		lb=allocate_lb_instance("lb-test1");
-		rc=register_lb_instance(lb);
-		printf("reg:%d %d\n",rc,lb->local_index);
-
-		unregister_lb_instance(find_lb_instance_by_name("lb-test1"));
-		dump_lb_instances(stdout);
+	device_module_test();
+	
 	
 	#if 0
+	struct lb_instance * lb=allocate_lb_instance("lb-test");
+	E3_ASSERT(lb);
+	int rc=register_lb_instance(lb);
+	printf("reg:%d %d\n",rc,lb->local_index);
+
+	lb=allocate_lb_instance("lb-test1");
+	rc=register_lb_instance(lb);
+	printf("reg:%d %d\n",rc,lb->local_index);
+
+	unregister_lb_instance(find_lb_instance_by_name("lb-test1"));
+	dump_lb_instances(stdout);
 	struct lb_instance * lb=allocate_lb_instance("lb-test");
 	E3_ASSERT(lb);
 
@@ -396,7 +398,6 @@ main(int argc, char **argv)
 	pnode=find_node_by_name("device-input-node-1");
 	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
 	#endif
-	
 	getchar();
 	
 	dump_nodes(stdout);
