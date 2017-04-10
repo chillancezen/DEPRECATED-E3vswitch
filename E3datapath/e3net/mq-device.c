@@ -127,6 +127,7 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 	/*start configuring port*/
 	memset(&mq_port_conf,0x0,sizeof(struct rte_eth_conf));
 	mq_port_conf.rxmode.mq_mode=ETH_MQ_RX_RSS;
+	mq_port_conf.rxmode.max_rx_pkt_len=ETHER_MAX_LEN;
 	mq_port_conf.rxmode.header_split=0;
 	mq_port_conf.rxmode.hw_ip_checksum=1;
 	mq_port_conf.rxmode.hw_vlan_filter=0;
@@ -139,7 +140,7 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 	mq_port_conf.txmode.mq_mode=ETH_MQ_TX_NONE;
 	mq_port_conf.rx_adv_conf.rss_conf.rss_key=NULL;
 	mq_port_conf.rx_adv_conf.rss_conf.rss_hf=dev_ops->hash_function;
-	mq_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;/*enable ptype classification*/
+	mq_port_conf.fdir_conf.mode=RTE_FDIR_MODE_SIGNATURE;/*enable ptype classification*/
 	
 	rc=rte_eth_dev_configure(port_id,pif->nr_queues,pif->nr_queues,&mq_port_conf);
 	if(rc<0){
@@ -147,7 +148,7 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 		goto error_node_registration;
 	}
 	rte_eth_promiscuous_enable(port_id);
-
+	
 	/*setup rx-queue and tx queue*/
 	rte_eth_dev_info_get(port_id,&pif->dev_info);
 	pif->dev_info.default_txconf.txq_flags=0;
@@ -184,7 +185,7 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 		E3_ERROR("errors occur during dev startup setup phase:%s\n",params);
 		goto error_node_registration;
 	}
-	rte_eth_link_get(port_id,&pif->link_info);
+	rte_eth_link_get_nowait(port_id,&pif->link_info);
 	{
 		rte_eth_dev_get_name_by_port(port_id,dev_data_name);
 		lptr=dev_data_name;
@@ -408,6 +409,9 @@ int checksum_cap_check(int port_id)
 	error_check:
 		return -1;
 }
+#if 0
+#include <rte_ether.h>
+#include <rte_ip.h>
 int dummy_cap_check(int port_id)
 {
 	return 0;
@@ -419,18 +423,46 @@ static int demo_input_node_process_func(void *arg)
 	int port_id;
 	int queue_id;
 	int idx=0,rc;
+	struct ether_hdr *eth_hdr ,* inner_eth_hdr;
+	struct ipv4_hdr * ip_hdr ,* inner_ip_hdr;
+
+	
 	struct node * pnode=(struct node *)arg;
 	port_id=(int)HIGH_UINT64((uint64_t)pnode->node_priv);
 	queue_id=(int)LOW_UINT64((uint64_t)pnode->node_priv);
 	nr_mbufs=rte_eth_rx_burst(port_id,queue_id,mbufs,64);
 	if(nr_mbufs==0)
 		return 0;
-	/*
+	
 	for(idx=0;idx<nr_mbufs;idx++){
+		
 		printf("%d.%d(%d) %x(%x) %p\n",port_id,queue_id,rte_lcore_id(),mbufs[idx]->packet_type,
 			mbufs[idx]->hash.fdir.hash,(void*)mbufs[idx]->ol_flags);
+		eth_hdr=rte_pktmbuf_mtod(mbufs[idx],struct ether_hdr*);
+		ip_hdr=(struct ipv4_hdr*)(eth_hdr+1);
+		ip_hdr->hdr_checksum=0;
+
+		inner_eth_hdr=(struct ether_hdr*)(8+8+20+(uint8_t*)ip_hdr);
+		inner_ip_hdr=(struct ipv4_hdr*)(inner_eth_hdr+1);
+		inner_ip_hdr->hdr_checksum=0;
+		mbufs[idx]->outer_l2_len=14;
+		mbufs[idx]->outer_l3_len=20;
+		
+		mbufs[idx]->l2_len=14+14+20+8+8;
+		mbufs[idx]->l3_len=20;
+		mbufs[idx]->vlan_tci=0x0d50;
+		
+		
+		mbufs[idx]->ol_flags=PKT_TX_IPV4|
+			PKT_TX_OUTER_IPV4|
+			PKT_TX_OUTER_IP_CKSUM|
+			PKT_TX_TUNNEL_VXLAN|
+			PKT_TX_IP_CKSUM|
+			PKT_TX_VLAN_PKT
+			;
+		mbufs[idx]->ol_flags=PKT_TX_VLAN_PKT;
 	}
-	*/
+	
 	rc=rte_eth_tx_burst(port_id,queue_id,mbufs,nr_mbufs);
 	for(idx=rc;idx<nr_mbufs;idx++)
 		rte_pktmbuf_free(mbufs[idx]);
@@ -442,13 +474,14 @@ static int demo_output_node_process_func(void *arg)
 	
 	return 0;
 }
-
+#endif
 void mq_device_module_test(void)
-{
+{	
+	#if 0
 	struct mq_device_ops dev_ops={
 		.mq_device_port_type=PORT_TYPE_LB_EXTERNAL,
 		.nr_queues_to_poll=4,
-		.hash_function=ETH_RSS_IP,
+		.hash_function=ETH_RSS_PROTO_MASK,
 		.capability_check=dummy_cap_check,
 		.input_node_process_func=demo_input_node_process_func,
 		.output_node_process_func=demo_output_node_process_func,
@@ -460,9 +493,9 @@ void mq_device_module_test(void)
 			},
 		},
 	};
+	register_native_mq_dpdk_port("0000:03:00.1",&dev_ops,NULL);
 	
-	register_native_mq_dpdk_port("0000:01:00.1",&dev_ops,NULL);
-	#if 0
+	
 	//register_native_mq_dpdk_port("eth_af_packet0,iface=enp0s3",&dev_ops);
 	register_native_mq_dpdk_port("0000:03:00.0",&dev_ops);
 	//register_native_dpdk_port("eth_af_packet0,iface=enp0s3",1);
@@ -471,12 +504,13 @@ void mq_device_module_test(void)
 	
 	getchar();
 	register_native_mq_dpdk_port("eth_tap0,iface=tap0",&dev_ops);
-	#endif
+	
 	getchar();
 	
 	unregister_native_mq_dpdk_port(find_port_id_by_ifname("10GEthernet0000/01/00/1"));
 
 	getchar();
 	register_native_mq_dpdk_port("0000:01:00.1",&dev_ops,NULL);
+	#endif
 }
 

@@ -61,6 +61,7 @@
 #include <l3-interface.h>
 #include <real-server.h>
 #include <lb-instance.h>
+#include <device-wrapper.h>
 
 int
 main(int argc, char **argv)
@@ -85,9 +86,9 @@ main(int argc, char **argv)
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
-	
-	device_module_test();
-	
+	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
+	add_e3_interface("0000:03:00.1",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
+	add_e3_interface("0000:01:00.1",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
 	
 	#if 0
 	struct lb_instance * lb=allocate_lb_instance("lb-test");

@@ -448,6 +448,7 @@ void unregister_native_dpdk_port(int port_id)
 	call_rcu(&pif->rcu,interface_release_rcu_callback);
 	
 }
+#if 0
 int dummy_check(int port)
 {
 	return 0;
@@ -459,16 +460,12 @@ struct device_ops ops={
 		.output_node_process_func=output_node_process_func,
 		.predefined_edges=0,
 	};
-
+#endif
 void device_module_test(void)
 {
-
-
-	
 	#if 1
-	
-	register_native_dpdk_port("eth_tap",&ops,NULL);
 	/*
+	register_native_dpdk_port("000:03:00.0",&ops,NULL);
 	register_native_dpdk_port("0000:01:00.1",0);
 	register_native_dpdk_port("0000:03:00.0",0);
 	register_native_dpdk_port("0000:03:00.1",0);
