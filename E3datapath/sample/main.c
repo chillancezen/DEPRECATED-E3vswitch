@@ -50,7 +50,7 @@
 #include <node_adjacency.h>
 #include <lcore_extension.h>
 #include <device.h>
-#include <l2-input.h>
+//#include <l2-input.h>
 
 #include <mbuf_delivery.h>
 #include <mq-device.h>
@@ -87,9 +87,22 @@ main(int argc, char **argv)
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
 	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
-	add_e3_interface("0000:03:00.1",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
-	add_e3_interface("0000:01:00.1",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
 	
+	add_e3_interface("0000:01:00.1",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
+	add_e3_interface("0000:03:00.1",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
+
+
+	struct l3_interface * l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=2;
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,1);
+	register_l3_interface(l3iface);
+
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=2;
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,3);
+	register_l3_interface(l3iface);
 	#if 0
 	struct lb_instance * lb=allocate_lb_instance("lb-test");
 	E3_ASSERT(lb);

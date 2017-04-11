@@ -4,6 +4,7 @@
 #define TASK_PRIORITY_HIGH 0x0
 #define TASK_PRIORITY_MEDIUM 0x1
 #define TASK_PRIORITY_LOW 0x100
+#define TASK_PRIORITY_EXTRA_LOW 0x200
 
 extern struct init_task  task_head;
 

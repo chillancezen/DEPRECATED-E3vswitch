@@ -10,7 +10,7 @@ DPDK_ARCH=x86_64-native-linuxapp-gcc
 INCLUDE=$(INCLUDE_DIR)
 INCLUDE += -I${RTE_SDK}/$(DPDK_ARCH)/include -include rte_config.h
 CCFLAG += -D_LGPL_SOURCE
-CCFLAG+= -g3 -Werror -Wall -fpic -O3 -m64  -march=native
+CCFLAG+= -g3 -Wall -fpic -O3 -m64  -march=native
 LDFLAG+= -L${RTE_SDK}/$(DPDK_ARCH)/lib
 CC=gcc
 LD=ld

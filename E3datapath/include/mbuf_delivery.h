@@ -3,14 +3,13 @@
 #include <node.h>
 #include <node_class.h>
 #include <node_adjacency.h>
-
-__attribute__((always_inline)) static inline int deliver_mbufs_between_nodes(uint16_t dst_node,uint16_t src_node,struct rte_mbuf **mbufs,int nr_mbufs)
+#include <rte_prefetch.h>
+__attribute__((always_inline)) static inline int deliver_mbufs_to_node(uint16_t dst_node,struct rte_mbuf **mbufs,int nr_mbufs)
 {
 	int nr_delivered=0;
-	struct node* pnode_src=find_node_by_index(src_node);
 	struct node* pnode_dst=find_node_by_index(dst_node);
 
-	if(!pnode_src || !pnode_dst) 
+	if(!pnode_dst) 
 		goto ret;
 	nr_delivered=rte_ring_mp_enqueue_burst(pnode_dst->node_ring,(void**)mbufs,nr_mbufs);
 	ret:
@@ -56,6 +55,11 @@ __attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(str
 
 #define peek_next_mbuf() ( (_peek_iptr>=_nr_mbufs)?-1:_peek_iptr++)
 
+#define prefetch_next_mbuf(mbufs,iptr) {\
+	if(((iptr)+1)<_nr_mbufs) \
+		rte_prefetch0(rte_pktmbuf_mtod((mbufs)[(iptr)+1],void*)); \
+}
+
 #define mbufs_left_to_process() (_nr_mbufs-_peek_iptr)
 
 #define MBUF_PROCESS_OK 0x0
@@ -85,5 +89,8 @@ __attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(str
 	(end)=(_latest_unsent_iptr<0)?-2:_current_iptr; \
 }
 
+#define fetch_pending_fwd_id(fwd_id) {\
+	(fwd_id)=_latest_identifier; \
+}
 
 #endif

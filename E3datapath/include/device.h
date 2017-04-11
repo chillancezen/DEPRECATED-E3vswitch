@@ -67,7 +67,14 @@ int register_native_dpdk_port(const char * params,struct device_ops * ops,int *p
 int find_port_id_by_ifname(const char* ifname);
 void device_module_test(void);
 
+#define find_e3iface_by_index(idx) ({\
+	struct E3interface * _pif=NULL; \
+	if(((idx)<RTE_MAX_ETHPORTS)&&((idx)>=0)) \
+		_pif=&ginterface_array[(idx)]; \
+	_pif; \
+})
 
+#define is_e3interface_available(pif) (!!rcu_dereference((pif)->if_avail_ptr))
 
 #define DEVICE_NEXT_ENTRY_TO_L2_INPUT 0x0
 #define DEVICE_NEXT_ENTRY_TO_MIRROR_PORT 0x1

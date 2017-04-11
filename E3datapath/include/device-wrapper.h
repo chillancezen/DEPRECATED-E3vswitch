@@ -18,6 +18,9 @@
 #define QUEUES_OF_10GE_NIC 2
 #define QUEUES_OF_GE_NIC 1
 
+#define L2_NEXT_EDGE_L2_PROCESS 0x0
+#define L2_NEXT_EDGE_L3_PROCESS 0x1
+
 
 int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pport_id);
 
