@@ -26,6 +26,7 @@ struct E3interface
 	__attribute__((aligned(64))) uint64_t cacheline1[0];
 	
 	void* if_avail_ptr;/*indicate whether this interface is available,non-NULL reveals availability*/
+	uint8_t hardware_nic_type;/*default to be VLINK*/
 	uint8_t port_status;/*not same with status of physical link*/
 	uint8_t port_type;
 	uint16_t input_node;

@@ -100,7 +100,7 @@ main(int argc, char **argv)
 
 	l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
-	l3iface->lower_if_index=2;
+	l3iface->lower_if_index=1;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,3);
 	register_l3_interface(l3iface);
 	#if 0
@@ -416,7 +416,7 @@ main(int argc, char **argv)
 	
 	dump_nodes(stdout);
 	dump_node_class(stdout);
-			
+	
 	lcore_default_entry(NULL);/*master core enters loops*/
 	while(1)
 		sleep(1);

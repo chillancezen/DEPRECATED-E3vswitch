@@ -47,7 +47,6 @@ int l2_under_process_poll_func(void * arg)
 		arp_hdr=(struct arp_hdr*)(eth_hdr+1);
 		if(arp_hdr->arp_op!=0x0100)
 			goto drop_this_packet;
-
 		/*search L3 interface with this E3inteface as its lower interface index*/
 		foreach_phy_l3_interface_safe_start(port,l3iface){
 			if(l3iface->if_ip_as_u32==arp_hdr->arp_data.arp_tip){
@@ -58,7 +57,7 @@ int l2_under_process_poll_func(void * arg)
 		foreach_phy_l3_interface_safe_end();
 		if(!target_l3iface)
 			goto drop_this_packet;
-
+		
 		/*mangle arp packet to be a legal arp responder*/
 		arp_hdr->arp_op=0x0200;
 		arp_hdr->arp_data.arp_tip=arp_hdr->arp_data.arp_sip;

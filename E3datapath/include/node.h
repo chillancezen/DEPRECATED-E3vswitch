@@ -7,7 +7,8 @@
 #include <urcu-qsbr.h>
 #include <e3_log.h>
 
-#define MAX_NR_NODES 256
+
+#define MAX_NR_NODES 1024 
 #define MAX_NODENAME_LEN 64
 #define NODE_BURST_SIZE 32
 #define MAX_NR_EDGES 64 

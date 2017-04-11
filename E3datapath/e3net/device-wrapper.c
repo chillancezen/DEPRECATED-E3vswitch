@@ -5,6 +5,8 @@
 #include <rte_ethdev.h>
 #include <mbuf_delivery.h>
 #include <rte_mbuf.h>
+#include <rte_ether.h>
+#include <rte_ip.h>
 
 int type_vlink_capability_check(int port_id)
 {
@@ -64,11 +66,13 @@ int type_lb_external_capability_check(int port_id)
 	return 0;
 }
 
-
+/*naming regulation:we regard arp as L2 process,and icmp as L3 proces
+even if we know naming is not as that good*/
 #define LB_DEVICE_INPUT_FWD_DROP 0x0
-#define LB_DEVICE_INPUT_FWD_L2_PROCESS 0x1
+#define LB_DEVICE_INPUT_FWD_L2_ARP_PROCESS 0x1
 #define LB_DEVICE_INPUT_FWD_L3_PROCESS 0x2
 #define LB_DEVICE_INPUT_FWD_L4_PROCESS 0x3
+#define LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS 0x4
 
 __attribute__((always_inline))static inline int _lb_device_input_node_post_process(
 	struct node * pnode,
@@ -83,9 +87,17 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 	int nr_delivered;
 	switch(HIGH_UINT64(fwd_id))
 	{
-		case LB_DEVICE_INPUT_FWD_L2_PROCESS:
+		case LB_DEVICE_INPUT_FWD_L2_ARP_PROCESS:
 			nr_delivered=deliver_mbufs_by_next_entry(pnode,
 				L2_NEXT_EDGE_L2_PROCESS,
+				mbufs,
+				nr_mbufs);
+			drop_start=nr_delivered;
+			nr_dropped=nr_mbufs-nr_delivered;
+			break;
+		case LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS:
+			nr_delivered=deliver_mbufs_by_next_entry(pnode,
+				L2_NEXT_EDGE_L3_PROCESS,
 				mbufs,
 				nr_mbufs);
 			drop_start=nr_delivered;
@@ -99,6 +111,38 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 		rte_pktmbuf_free(mbufs[drop_start+idx]);
 	return 0;
 }
+
+__attribute__((always_inline)) static inline uint64_t nic_intel_xl710_classification(struct node * pnode,struct rte_mbuf* mbuf)
+{
+	uint64_t fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
+	if(mbuf->l2_type==RTE_PTYPE_L2_ETHER_ARP)
+		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L2_ARP_PROCESS,0);
+	else if(((mbuf->l3_type==(RTE_PTYPE_L3_IPV4>>4)) ||
+			(mbuf->l3_type==(RTE_PTYPE_L3_IPV4_EXT>>4)) ||
+			(mbuf->l3_type==(RTE_PTYPE_L3_IPV4_EXT_UNKNOWN>>4)))&&
+			(mbuf->l4_type==(RTE_PTYPE_L4_ICMP>>8)))
+		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS,0);
+	return fwd_id;
+}
+
+__attribute__((always_inline)) static inline uint64_t nic_intel_82599_classification(struct node * pnode,struct rte_mbuf* mbuf)
+{
+	uint64_t fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
+	struct ether_hdr * eth_hdr=rte_pktmbuf_mtod(mbuf,struct ether_hdr *);
+	struct ipv4_hdr * ip_hdr;
+	switch(eth_hdr->ether_type)
+	{
+		case 0x0608:
+			fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L2_ARP_PROCESS,0);
+			break;
+		case 0x0008:
+			ip_hdr=(struct ipv4_hdr *)(eth_hdr+1);
+			if(ip_hdr->next_proto_id==0x1)
+				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS,0);
+			break;
+	}
+	return fwd_id;
+}
 int lb_device_input_node_process_func(void *arg)
 {
 	struct rte_mbuf * mbufs[64];
@@ -107,6 +151,7 @@ int lb_device_input_node_process_func(void *arg)
 	int queue_id;
 	int process_rc;
 	struct node * pnode=(struct node *)arg;
+	struct E3interface * pif;
 	uint64_t fwd_id=0;
 	int iptr=0;
 	int start_index,end_index;
@@ -122,11 +167,23 @@ int lb_device_input_node_process_func(void *arg)
 	pre_setup_env(nr_mbufs);
 	/*check ptypes and deliver them directory,do not touch any packet payload*/
 	while((iptr=peek_next_mbuf())>=0){
-		/*prefetch_next_mbuf(mbufs,iptr);*/
 		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
-		if(mbufs[iptr]->l2_type==RTE_PTYPE_L2_ETHER_ARP)
-			fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L2_PROCESS,0);
-		
+		/*hardware dependent classification*/
+		pif=find_e3iface_by_index(port_id);
+		if(PREDICT_TRUE(is_e3interface_available(pif))){
+			switch(pif->hardware_nic_type)
+			{
+				case NIC_INTEL_XL710:
+					fwd_id=nic_intel_xl710_classification(pnode,mbufs[iptr]);
+					break;
+				case NIC_INTEL_82599:
+					prefetch_next_mbuf(mbufs,iptr);
+					fwd_id=nic_intel_82599_classification(pnode,mbufs[iptr]);
+					break;
+				default:
+					break;
+			}
+		}		
 		process_rc=proceed_mbuf(iptr,fwd_id);
 		if(process_rc==MBUF_PROCESS_RESTART){
 			fetch_pending_index(start_index,end_index);
@@ -155,6 +212,7 @@ int default_device_output_node_process_func(void* arg)
 	int nr_mbufs;
 	int nr_delivered;
 	int idx=0;
+	
 	int port_id=HIGH_UINT64((uint64_t)pnode->node_priv);
 	int queue_id=LOW_UINT64((uint64_t)pnode->node_priv);
 	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,
@@ -171,8 +229,10 @@ int default_device_output_node_process_func(void* arg)
 int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pport_id)
 {
 	int rc;
+	int _pport_id=0;
 	uint8_t nic_speed=NIC_GE;
 	struct mq_device_ops ops;
+	struct E3interface * pif;
 	memset(&ops,0x0,sizeof(struct mq_device_ops));
 	switch(nic_type)
 	{
@@ -240,11 +300,21 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 		ops.edges[0].fwd_behavior=NODE_TO_NODE_FWD;
 		ops.edges[0].edge_entry=L2_NEXT_EDGE_L2_PROCESS;
 		ops.edges[0].next_ref="l2-underlay-node";
-		ops.predefined_edges=1;
+
+		ops.edges[1].fwd_behavior=NODE_TO_NODE_FWD;
+		ops.edges[1].edge_entry=L2_NEXT_EDGE_L3_PROCESS;
+		ops.edges[1].next_ref="l3-underlay-node";
+		ops.predefined_edges=2;
 	}
 	rc=register_native_mq_dpdk_port(params,
 		&ops,
-		pport_id);
+		&_pport_id);
+	if(!rc){
+		if(pport_id)
+			*pport_id=_pport_id;
+		pif=find_e3iface_by_index(_pport_id);
+		pif->hardware_nic_type=nic_type;
+	}
 	
 	return rc;
 }

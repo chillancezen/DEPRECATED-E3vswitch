@@ -44,7 +44,7 @@ extern struct node_class * gnode_class_array[MAX_NR_NODE_CLASSES];
 
 #define FOREACH_NODE_CLASS_START(node_class) {\
 	int _index=0; \
-	for(_index=0;_index<MAX_NR_NODES;_index++){ \
+	for(_index=0;_index<MAX_NR_NODE_CLASSES;_index++){ \
 		(node_class)=rcu_dereference(gnode_class_array[_index]); \
 		if(node_class)
 			
