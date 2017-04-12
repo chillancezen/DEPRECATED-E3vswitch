@@ -57,6 +57,9 @@ int l3_under_process_poll_func(void * arg)
 		foreach_phy_l3_interface_safe_end();
 		if(!target_l3iface)
 			goto drop_this_packet;
+		/*check vlan whether matches*/
+		if(mbufs[idx]->vlan_tci!=target_l3iface->vlan_vid)
+			goto drop_this_packet;
 		/*modify icmp type and check sum*/
 		icmp_hdr->icmp_type=IP_ICMP_ECHO_REPLY;
 		csum=(~(icmp_hdr->icmp_cksum))&0xffff;
@@ -85,6 +88,8 @@ int l3_under_process_poll_func(void * arg)
 		eth_hdr->s_addr.addr_bytes[3]=pe3if->mac_addr.addr_bytes[3];
 		eth_hdr->s_addr.addr_bytes[4]=pe3if->mac_addr.addr_bytes[4];
 		eth_hdr->s_addr.addr_bytes[5]=pe3if->mac_addr.addr_bytes[5];
+		if(mbufs[idx]->vlan_tci)
+			mbufs[idx]->ol_flags|=PKT_TX_VLAN_PKT;
 		nr_delivered=deliver_mbufs_to_node(pe3if->output_node_arrar[0],&mbufs[idx],1);
 		if(nr_delivered!=1)
 			goto drop_this_packet;

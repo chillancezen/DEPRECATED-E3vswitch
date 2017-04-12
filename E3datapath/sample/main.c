@@ -95,13 +95,30 @@ main(int argc, char **argv)
 	struct l3_interface * l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
 	l3iface->lower_if_index=2;
+	l3iface->vlan_vid=507;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,1);
 	register_l3_interface(l3iface);
 
 	l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
 	l3iface->lower_if_index=1;
+	l3iface->vlan_vid=507;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,3);
+	register_l3_interface(l3iface);
+
+
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=1;
+	l3iface->vlan_vid=508;
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,151,4);
+	register_l3_interface(l3iface);
+
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=1;
+	l3iface->vlan_vid=0;
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,149,1);
 	register_l3_interface(l3iface);
 	#if 0
 	struct lb_instance * lb=allocate_lb_instance("lb-test");

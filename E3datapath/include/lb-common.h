@@ -17,15 +17,7 @@ struct virtual_ip{
 	};
 	uint32_t next_hop_ip;
 	uint8_t next_mac[6];/*only ARP-snooping can do modify mac*/
-	union{/*external network vlan insertion is supported,
-	once vlan_vid is set 0,no vlan header is inserted*/
-		uint16_t vlan_tci;
-		struct{
-			uint16_t vlan_pri:3;
-			uint16_t vlan_cfi:1;
-			uint16_t vlan_vid:12;
-		};
-	};
+	
 	
 	struct rcu_head rcu;
 	void (*vip_reclaim_function)(struct rcu_head*);
@@ -65,7 +57,15 @@ struct l3_interface{
 	uint16_t __key lower_if_index;/*if it's a virtual interface ,the lower_if_index
 	is the physical E3Interface,otherwise it's another virtual interface*/
 	uint16_t local_index;
-	
+	union{/*external network vlan insertion is supported,
+	once vlan_vid is set 0,no vlan header is inserted*/
+		uint16_t vlan_tci;
+		struct{
+			uint16_t vlan_pri:3;
+			uint16_t vlan_cfi:1;
+			uint16_t vlan_vid:12;
+		};
+	};
 	struct rcu_head rcu;
 	void (*l3iface_reclaim_function)(struct rcu_head*);
 }__attribute__((aligned(64)));

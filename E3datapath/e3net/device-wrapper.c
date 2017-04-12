@@ -25,6 +25,7 @@ int type_lb_internal_capability_check(int port_id)
 		goto error_check;
 	#define _t(c) if(!(dev_info.tx_offload_capa&(c))) \
 		goto error_check;
+	_r(DEV_RX_OFFLOAD_VLAN_STRIP);
 	_r(DEV_RX_OFFLOAD_IPV4_CKSUM);
 	_r(DEV_RX_OFFLOAD_UDP_CKSUM);
 	_r(DEV_RX_OFFLOAD_TCP_CKSUM);
@@ -33,6 +34,7 @@ int type_lb_internal_capability_check(int port_id)
 	_t(DEV_TX_OFFLOAD_IPV4_CKSUM);
 	_t(DEV_TX_OFFLOAD_UDP_CKSUM);
 	_t(DEV_TX_OFFLOAD_TCP_CKSUM);
+	_t(DEV_TX_OFFLOAD_VLAN_INSERT);
 	_t(DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM);
 	#undef _r
 	#undef _t 
@@ -49,6 +51,7 @@ int type_lb_external_capability_check(int port_id)
 		goto error_check;
 	#define _t(c) if(!(dev_info.tx_offload_capa&(c))) \
 		goto error_check;
+	_r(DEV_RX_OFFLOAD_VLAN_STRIP);
 	_r(DEV_RX_OFFLOAD_IPV4_CKSUM);
 	_r(DEV_RX_OFFLOAD_UDP_CKSUM);
 	_r(DEV_RX_OFFLOAD_TCP_CKSUM);
@@ -171,6 +174,7 @@ int lb_device_input_node_process_func(void *arg)
 		/*hardware dependent classification*/
 		pif=find_e3iface_by_index(port_id);
 		if(PREDICT_TRUE(is_e3interface_available(pif))){
+			//printf("type:%x of:%p vlan:%d l2:%d\n",mbufs[iptr]->packet_type,(void*)mbufs[iptr]->ol_flags,mbufs[iptr]->vlan_tci,mbufs[iptr]->l2_len);
 			switch(pif->hardware_nic_type)
 			{
 				case NIC_INTEL_XL710:
@@ -314,6 +318,9 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 			*pport_id=_pport_id;
 		pif=find_e3iface_by_index(_pport_id);
 		pif->hardware_nic_type=nic_type;
+		
+		int exec_rc=e3interface_turn_vlan_strip_on(_pport_id);
+		E3_WARN("vlan stripping on %d %s\n",_pport_id,!exec_rc?"succeeds":"fails");
 	}
 	
 	return rc;

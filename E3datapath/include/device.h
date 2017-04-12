@@ -80,7 +80,11 @@ void device_module_test(void);
 #define DEVICE_NEXT_ENTRY_TO_L2_INPUT 0x0
 #define DEVICE_NEXT_ENTRY_TO_MIRROR_PORT 0x1
 
+
 char * link_speed_to_string(uint32_t speed);
+int e3interface_turn_vlan_strip_on(int port);
+int e3interface_turn_vlan_strip_off(int port);
+
 
 
 #endif

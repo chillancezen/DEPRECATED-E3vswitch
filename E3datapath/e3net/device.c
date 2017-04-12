@@ -448,6 +448,20 @@ void unregister_native_dpdk_port(int port_id)
 	call_rcu(&pif->rcu,interface_release_rcu_callback);
 	
 }
+
+int e3interface_turn_vlan_strip_on(int port)
+{
+	int vlan_offload_mask=rte_eth_dev_get_vlan_offload(port);
+	vlan_offload_mask|=ETH_VLAN_STRIP_OFFLOAD;
+	return rte_eth_dev_set_vlan_offload(port,vlan_offload_mask);
+}
+int e3interface_turn_vlan_strip_off(int port)
+{
+	int vlan_offload_mask=rte_eth_dev_get_vlan_offload(port);
+	vlan_offload_mask&=(uint32_t)(~ETH_VLAN_STRIP_OFFLOAD);
+	return rte_eth_dev_set_vlan_offload(port,vlan_offload_mask);
+}
+
 #if 0
 int dummy_check(int port)
 {
