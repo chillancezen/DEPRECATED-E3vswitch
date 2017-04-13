@@ -76,7 +76,7 @@ even if we know naming is not as that good*/
 #define LB_DEVICE_INPUT_FWD_L3_PROCESS 0x2
 #define LB_DEVICE_INPUT_FWD_L4_PROCESS 0x3
 #define LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS 0x4
-
+#define LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS 0x5
 __attribute__((always_inline))static inline int _lb_device_input_node_post_process(
 	struct node * pnode,
 	struct rte_mbuf **mbufs,
@@ -106,6 +106,14 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 			drop_start=nr_delivered;
 			nr_dropped=nr_mbufs-nr_delivered;
 			break;
+		case LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS:
+			nr_delivered=deliver_mbufs_by_next_entry(pnode,
+				L2_NEXT_EDGE_L4_TUNNEL_PROCESS,
+				mbufs,
+				nr_mbufs);
+			drop_start=nr_delivered;
+			nr_dropped=nr_mbufs-nr_delivered;
+			break;
 		default:
 			nr_dropped=nr_mbufs;
 			break;
@@ -115,21 +123,36 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 	return 0;
 }
 
-__attribute__((always_inline)) static inline uint64_t nic_intel_xl710_classification(struct node * pnode,struct rte_mbuf* mbuf)
+__attribute__((always_inline)) static inline uint64_t nic_intel_xl710_classification(
+	struct node * pnode,
+	struct rte_mbuf* mbuf,
+	struct E3interface * pif)
 {
+	
 	uint64_t fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
 	if(mbuf->l2_type==RTE_PTYPE_L2_ETHER_ARP)
 		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L2_ARP_PROCESS,0);
 	else if(((mbuf->l3_type==(RTE_PTYPE_L3_IPV4>>4)) ||
 			(mbuf->l3_type==(RTE_PTYPE_L3_IPV4_EXT>>4)) ||
-			(mbuf->l3_type==(RTE_PTYPE_L3_IPV4_EXT_UNKNOWN>>4)))&&
-			(mbuf->l4_type==(RTE_PTYPE_L4_ICMP>>8)))
-		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS,0);
+			(mbuf->l3_type==(RTE_PTYPE_L3_IPV4_EXT_UNKNOWN>>4)))){/*ipv4 only*/
+		if(mbuf->l4_type==(RTE_PTYPE_L4_ICMP>>8))/*ICMP traffic*/
+			fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS,0);
+		else if(pif->port_type==PORT_TYPE_LB_INTERNAL){
+			if(mbuf->tun_type)/*XL710 only recognize vxlan as RTE_PTYPE_TUNNEL_GRENAT sometimes,sometimes it does not */
+				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS,0);
+			else if(mbuf->l4_type==(RTE_PTYPE_L4_UDP>>8))
+				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS,0);
+		}
+	}
 	return fwd_id;
 }
 
-__attribute__((always_inline)) static inline uint64_t nic_intel_82599_classification(struct node * pnode,struct rte_mbuf* mbuf)
+__attribute__((always_inline)) static inline uint64_t nic_intel_82599_classification(
+	struct node * pnode,
+	struct rte_mbuf* mbuf,
+	struct E3interface * pif)
 {
+	/*when classify trtaffic on Intel 82599,it's essential to inspect the packet payload*/
 	uint64_t fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
 	struct ether_hdr * eth_hdr=rte_pktmbuf_mtod(mbuf,struct ether_hdr *);
 	struct ipv4_hdr * ip_hdr;
@@ -159,6 +182,11 @@ int lb_device_input_node_process_func(void *arg)
 	int iptr=0;
 	int start_index,end_index;
 	uint64_t last_fwd_id;
+	/*classification cache entries*/
+	uint64_t last_classification_fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
+	uint32_t last_classification_hash=0;
+	uint32_t last_classification_packet_type=0;
+	
 	DEF_EXPRESS_DELIVERY_VARS();
 	RESET_EXPRESS_DELIVERY_VARS();
 	
@@ -168,21 +196,37 @@ int lb_device_input_node_process_func(void *arg)
 	if(!nr_mbufs)
 		return 0;
 	pre_setup_env(nr_mbufs);
-	/*check ptypes and deliver them directory,do not touch any packet payload*/
+	/*check ptypes and deliver them directly,do not touch any packet payload*/
 	while((iptr=peek_next_mbuf())>=0){
 		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
 		/*hardware dependent classification*/
 		pif=find_e3iface_by_index(port_id);
 		if(PREDICT_TRUE(is_e3interface_available(pif))){
-			//printf("type:%x of:%p vlan:%d l2:%d\n",mbufs[iptr]->packet_type,(void*)mbufs[iptr]->ol_flags,mbufs[iptr]->vlan_tci,mbufs[iptr]->l2_len);
+			/*TODO:cache recent packets with their packet-type,hash to identify subsequent packets*/
 			switch(pif->hardware_nic_type)
 			{
 				case NIC_INTEL_XL710:
-					fwd_id=nic_intel_xl710_classification(pnode,mbufs[iptr]);
+					#if 0
+					printf("type:%x of:%p vlan:%d %4x-%4x l2:%d\n",mbufs[iptr]->packet_type,
+						(void*)mbufs[iptr]->ol_flags,
+						mbufs[iptr]->vlan_tci,
+						mbufs[iptr]->hash.fdir.hash,
+						mbufs[iptr]->hash.fdir.id,
+						mbufs[iptr]->l2_len);
+					#endif
+					if((last_classification_hash==mbufs[iptr]->hash.fdir.lo)&&
+						(last_classification_packet_type==mbufs[iptr]->packet_type))
+						fwd_id=last_classification_fwd_id;
+					else{
+						fwd_id=nic_intel_xl710_classification(pnode,mbufs[iptr],pif);
+						last_classification_hash=mbufs[iptr]->hash.fdir.lo;
+						last_classification_packet_type=mbufs[iptr]->packet_type;
+						last_classification_fwd_id=fwd_id;
+					}
 					break;
 				case NIC_INTEL_82599:
 					prefetch_next_mbuf(mbufs,iptr);
-					fwd_id=nic_intel_82599_classification(pnode,mbufs[iptr]);
+					fwd_id=nic_intel_82599_classification(pnode,mbufs[iptr],pif);
 					break;
 				default:
 					break;
@@ -308,7 +352,12 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 		ops.edges[1].fwd_behavior=NODE_TO_NODE_FWD;
 		ops.edges[1].edge_entry=L2_NEXT_EDGE_L3_PROCESS;
 		ops.edges[1].next_ref="l3-underlay-node";
-		ops.predefined_edges=2;
+
+		ops.edges[2].fwd_behavior=NODE_TO_CLASS_FWD;
+		ops.edges[2].edge_entry=L2_NEXT_EDGE_L4_TUNNEL_PROCESS;
+		ops.edges[2].next_ref="l4-tunnel-class";
+		
+		ops.predefined_edges=3;
 	}
 	rc=register_native_mq_dpdk_port(params,
 		&ops,

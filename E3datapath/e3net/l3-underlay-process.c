@@ -13,7 +13,8 @@
 #include <mbuf_delivery.h>
 
 #define L3_UNDERLAY_NODE_NAME "l3-underlay-node"
-
+/*this route is part of L3 slow path as with l2-underlay-node,
+it's ok to walk through the whole L3 interface list*/
 int l3_under_process_poll_func(void * arg)
 {
 	struct node * pnode=(struct node * )arg;

@@ -57,7 +57,7 @@ __attribute__((always_inline)) inline static int deliver_mbufs_by_next_entry(str
 
 #define prefetch_next_mbuf(mbufs,iptr) {\
 	if(((iptr)+1)<_nr_mbufs) \
-		rte_prefetch0(rte_pktmbuf_mtod((mbufs)[(iptr)+1],void*)); \
+		rte_prefetch1(rte_pktmbuf_mtod((mbufs)[(iptr)+1],void*)); \
 }
 
 #define mbufs_left_to_process() (_nr_mbufs-_peek_iptr)

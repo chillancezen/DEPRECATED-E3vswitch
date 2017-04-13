@@ -62,7 +62,7 @@
 #include <real-server.h>
 #include <lb-instance.h>
 #include <device-wrapper.h>
-
+#include <l4-tunnel-process.h>
 int
 main(int argc, char **argv)
 {
@@ -87,11 +87,11 @@ main(int argc, char **argv)
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
 	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
-	
 	add_e3_interface("0000:01:00.1",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
 	add_e3_interface("0000:03:00.1",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
 
 
+	
 	struct l3_interface * l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
 	l3iface->lower_if_index=2;
@@ -113,14 +113,25 @@ main(int argc, char **argv)
 	l3iface->vlan_vid=508;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,151,4);
 	register_l3_interface(l3iface);
-
+	
 	l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
-	l3iface->lower_if_index=1;
+	l3iface->lower_if_index=2;
 	l3iface->vlan_vid=0;
-	l3iface->if_ip_as_u32=MAKE_IP32(130,140,149,1);
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,160,1);
 	register_l3_interface(l3iface);
+	uint8_t  mac[]="\x82\xe1\x5b\x6b\x6d\x2c";
+	struct real_server *rs=allocate_real_server();
+	rs->tunnel_id=VNI_SWAP_ORDER(3685);
+	copy_ether_address(rs->rs_mac,mac);
+
+	printf("register rc:%d\n",register_real_server(rs));
+	
+	
+	
 	#if 0
+	
+	
 	struct lb_instance * lb=allocate_lb_instance("lb-test");
 	E3_ASSERT(lb);
 	int rc=register_lb_instance(lb);
@@ -364,6 +375,7 @@ main(int argc, char **argv)
 		key.value_as_u64++;
 		add_index_2_2_item_unsafe(base,&key);
 	}
+
 
 	
 	key.key_tag=0x23;

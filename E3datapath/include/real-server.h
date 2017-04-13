@@ -24,13 +24,13 @@ int register_real_server(struct real_server * rs);
 void unregister_real_server(struct real_server * rs);
 void dump_real_servers(FILE * fp);
 
-#define find_real_server_at_index(idx) (((idx)<MAX_REAL_SERVER_NR)?\
+#define find_real_server_at_index(idx) ((((idx)<MAX_REAL_SERVER_NR)&&((idx)>=0))?\
 	((struct real_server *)rcu_dereference(grs_array[(idx)])):\
 	NULL)
 	
 #define search_real_server(tunnel_id,mac) ({\
 	int _rc; \
-	struct findex_2_1_6_key _key; \
+	struct findex_2_1_6_key _key={.key_index=0}; \
 	make_findex_2_1_6_key((uint32_t)(tunnel_id),(uint8_t *)(mac),&_key); \
 	_rc=fast_index_2_1_6_item_safe(rs_base,&_key); \
 	_rc?-1:(uint16_t)_key.value_as_u64; \

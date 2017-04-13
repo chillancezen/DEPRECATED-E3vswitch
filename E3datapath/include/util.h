@@ -35,4 +35,22 @@
 #define LOW_UINT32(v) ((uint16_t)((v)&0xffff))
 #define HIGH_UINT32(v) ((uint16_t)(((v)>>16)&0xffff))
 
+__attribute__((always_inline)) 
+	static inline int is_ether_address_equal(void* a,void* b)
+{
+	return ((*(uint32_t*)(0+(uint8_t*)(a)))==(*(uint32_t*)(0+(uint8_t*)(b))))&& \
+		((*(uint16_t*)(4+(uint8_t*)(a)))==(*(uint16_t*)(4+(uint8_t*)(b)))) ;
+}
+__attribute__((always_inline))
+	static inline void copy_ether_address(void* dst,void * src)
+{
+	*(uint32_t*)(0+(uint8_t*)(dst))=*(uint32_t*)(0+(uint8_t*)(src)); 
+	*(uint16_t*)(4+(uint8_t*)(dst))=*(uint16_t*)(4+(uint8_t*)(src)); 
+}
+
+
+#define VNI_SWAP_ORDER(vni) (((((uint32_t)(vni))>>16)&0xff)| \
+	(((uint32_t)(vni))&0xff00)| \
+	((((uint32_t)(vni))<<16)&0xff0000))
+
 #endif
