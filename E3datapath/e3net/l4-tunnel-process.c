@@ -20,15 +20,48 @@ E3_init(l4_tunnel_process_class_early_init,TASK_PRIORITY_LOW);
 
 #define L4_TUNNEL_PROCESS_FWD_DROP 0x0
 #define L4_TUNNEL_PROCESS_FWD_INNER_L2_PROCESS 0x1
-#define L4_TUNNEL_PROCESS_FWD_INNER_L3_PROCESS 0x1
+#define L4_TUNNEL_PROCESS_FWD_INNER_L3_PROCESS 0x2
+#define L4_TUNNEL_PROCESS_FWD_LB_PROCESS 0x3
+
+#define L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L2_NODE 0x0
+#define L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L3_NODE 0x1
+#define L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_LB_NODE 0x2 /*edge for common udp and tcp traffic*/
 
 __attribute__((always_inline)) 
-	static inline int _tunnel_decoede_post_process(
+	static inline int _tunnel_decode_post_process(
 	struct node* pnode,
 	struct rte_mbuf **mbufs,
 	int nr_mbufs,
 	uint64_t fwd_id)
 {
+	int idx=0;
+	int drop_start=0;
+	int nr_dropped=0;
+	int nr_delivered;
+	
+	switch(HIGH_UINT64(fwd_id))
+	{
+		case L4_TUNNEL_PROCESS_FWD_INNER_L2_PROCESS:
+			nr_delivered=deliver_mbufs_by_next_entry(pnode,
+				L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L2_NODE,
+				mbufs,
+				nr_mbufs);
+			drop_start=nr_delivered;
+			nr_dropped=nr_mbufs-nr_delivered;
+			break;
+		case L4_TUNNEL_PROCESS_FWD_INNER_L3_PROCESS:
+			printf("icmp\n");
+
+			break;
+		case L4_TUNNEL_PROCESS_FWD_LB_PROCESS:
+			printf("udp or tcp\n");
+			break;
+		default:
+			nr_dropped=nr_mbufs;
+			break;
+	}
+	for(idx=0;idx<nr_dropped;idx++)
+		rte_pktmbuf_free(mbufs[drop_start+idx]);
 	return 0;
 }
 __attribute__((always_inline)) 
@@ -46,6 +79,7 @@ __attribute__((always_inline))
 	struct vxlan_hdr * vxlan_hdr;
 
 	struct ether_hdr * inner_eth_hdr;
+	struct ipv4_hdr * inner_ip_hdr;
 	
 	_(eth_hdr->ether_type==0x0008);
 	_(ip_hdr->next_proto_id==0x11);
@@ -54,7 +88,7 @@ __attribute__((always_inline))
 	vxlan_hdr=(struct vxlan_hdr*)(udp_hdr+1);
 	_((vxlan_hdr->vx_flags==0x8)&&(!(vxlan_hdr->vx_vni&0xff000000)));
 	inner_eth_hdr=(struct ether_hdr *)(vxlan_hdr+1);/*already a vxlan packet*/
-
+	inner_ip_hdr=(struct ipv4_hdr*)(inner_eth_hdr+1);
 	/*even though I optimized real-server indexing using AVX/SSE techniques,
 	it's still supposed to be very costy,so we cache last searching result,
 	the risk is the real-servers list may change during this scheduling phase,
@@ -68,7 +102,12 @@ __attribute__((always_inline))
 	}
 	rs_num=(int)*cached_search_result;
 	_(find_real_server_at_index(rs_num));
-
+	/*here we use mbuf's cacheline1 to record real_server index number and protocol 
+	layer header offset*/
+	mbuf->udata64=rs_num;
+	mbuf->outer_l3_len=((ip_hdr->version_ihl&0xf)<<2);
+	
+	
 	
 	if(inner_eth_hdr->ether_type==0x0608){
 		fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_INNER_L2_PROCESS,0);
@@ -77,7 +116,17 @@ __attribute__((always_inline))
 	_(inner_eth_hdr->ether_type==0x0008);/*even inner vlan is not supported*/
 	/*here we are not gonna parse inner L3 header ,because it's within another cache line
 	otherwise it may influence performance :14+20+8+8+14==64*/
-	
+	/*2017.4.15:afterward,we comprised,go on next cache line conducting l3 or higer level classification
+	make sure that the following nodes clearly know what kind of packets it receives*/
+	mbuf->l3_len=(inner_ip_hdr->version_ihl&0xf)<<2;
+	if(inner_ip_hdr->next_proto_id==0x1){
+		fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_INNER_L3_PROCESS,0);
+		goto ret;
+	}
+	if((inner_ip_hdr->next_proto_id==0x11)||(inner_ip_hdr->next_proto_id==0x6)){
+		fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_LB_PROCESS,0);
+		goto ret;
+	}
 	
 	#undef _
 	ret:
@@ -116,7 +165,7 @@ int l4_tunnel_process_func(void*arg)
 		if(process_rc==MBUF_PROCESS_RESTART){
 			fetch_pending_index(start_index,end_index);
 			fetch_pending_fwd_id(last_fwd_id);
-			_tunnel_decoede_post_process(pnode,&mbufs[start_index],end_index-start_index+1,last_fwd_id);
+			_tunnel_decode_post_process(pnode,&mbufs[start_index],end_index-start_index+1,last_fwd_id);
 			flush_pending_mbuf();
 			proceed_mbuf(iptr,fwd_id);
 		}
@@ -124,7 +173,7 @@ int l4_tunnel_process_func(void*arg)
 	fetch_pending_index(start_index,end_index);
 	fetch_pending_fwd_id(last_fwd_id);
 	if(PREDICT_TRUE(start_index>=0))
-		_tunnel_decoede_post_process(pnode,&mbufs[start_index],end_index-start_index+1,last_fwd_id);;
+		_tunnel_decode_post_process(pnode,&mbufs[start_index],end_index-start_index+1,last_fwd_id);;
 	
 	return 0;
 }
@@ -166,6 +215,16 @@ int register_l4_tunnel_node(int socket_id)
 		E3_ERROR("attaching node:%s to lcore fails\n",(char*)pnode->name);
 		goto error_detach_node_from_class;
 	}
+	/*setup next edges*/
+	if(set_node_to_node_edge((char*)pnode->name,
+		L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L2_NODE,
+		"l2-overlay-node")){
+		E3_ERROR("setting node:%s edge:%d to %s fails\n",(char*)pnode->name,
+			L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L2_NODE,
+			"l2-overlay-node");
+		goto error_detach_node_from_class;
+	}
+	
 	E3_LOG("register node:%s on lcore %d\n",(char*)pnode->name,pnode->lcore_id);
 	return 0;
 	error_detach_node_from_class:

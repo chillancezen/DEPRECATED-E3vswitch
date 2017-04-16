@@ -120,12 +120,26 @@ main(int argc, char **argv)
 	l3iface->vlan_vid=0;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,160,1);
 	register_l3_interface(l3iface);
-	uint8_t  mac[]="\x82\xe1\x5b\x6b\x6d\x2c";
+
+	/*register a tunnel L3 interface on interface:130,140,150,1*/
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_VIRTUAL;
+	l3iface->lower_if_index=0;
+	l3iface->if_ip_as_u32=MAKE_IP32(4,4,4,44);
+	copy_ether_address(l3iface->if_mac,"\x22\xe1\x5b\x6b\x6d\x22");
+	register_l3_interface(l3iface);
+	
 	struct real_server *rs=allocate_real_server();
 	rs->tunnel_id=VNI_SWAP_ORDER(3685);
-	copy_ether_address(rs->rs_mac,mac);
-
+	rs->rs_ipv4=MAKE_IP32(4,4,4,4);
+	rs->lb_iface=4;
+	copy_ether_address(rs->rs_mac,"\x82\xe1\x5b\x6b\x6d\x2c");
 	printf("register rc:%d\n",register_real_server(rs));
+	printf("register rc lb-iface:%d\n",rs->lb_iface);
+
+	
+	dump_l3_interfaces(stdout);
+
 	
 	
 	

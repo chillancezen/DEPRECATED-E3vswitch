@@ -36,7 +36,9 @@ struct real_server{
 	uint8_t  rs_host_mac[6];
 	uint16_t lb_iface;/*VM routes traffic to LB by routing traffic to 
 	the neutron port where an entity will delegate the basic L3 functions*/
-
+	uint16_t rs_host_ipv4_identity;/*it increments every time a packet is sento real-server*/
+	
+	
 	uint16_t local_index;
 	struct rcu_head rcu;
 	void (*real_server_rcu_reclaim_func)(struct rcu_head *);

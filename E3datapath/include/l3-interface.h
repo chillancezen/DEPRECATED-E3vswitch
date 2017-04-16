@@ -10,7 +10,7 @@ void unregister_l3_interface(struct l3_interface * l3iface);
 void dump_l3_interfaces(FILE* fp);
 struct l3_interface* allocate_l3_interface(void);
 
-#define find_l3_interface_at_index(idx) (((idx)<MAX_L3_INTERFACE_NR)?\
+#define find_l3_interface_at_index(idx) ((((idx)<MAX_L3_INTERFACE_NR)&&((idx)>=0))?\
 	(rcu_dereference(gl3if_array[(idx)])): \
 	NULL)
 

@@ -255,7 +255,7 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 		poutput_node_array[idx]->node_reclaim_func=input_and_output_reclaim_func;
 	}
 	
-	E3_LOG("register interface:%s with\n",(char*)pif->ifname);
+	E3_LOG("register E3interface:%s with\n",(char*)pif->ifname);
 	for(idx=0;idx<pif->nr_queues;idx++){
 		E3_LOG("\tnode %s on %d and node %s on %d\n",
 			(char*)pinput_node_array[idx]->name,
