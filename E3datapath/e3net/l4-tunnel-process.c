@@ -50,8 +50,13 @@ __attribute__((always_inline))
 			nr_dropped=nr_mbufs-nr_delivered;
 			break;
 		case L4_TUNNEL_PROCESS_FWD_INNER_L3_PROCESS:
-			printf("icmp\n");
-
+			nr_delivered=deliver_mbufs_by_next_entry(pnode,
+				L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L3_NODE,
+				mbufs,
+				nr_mbufs);
+			drop_start=nr_delivered;
+			nr_dropped=nr_mbufs-nr_delivered;
+			
 			break;
 		case L4_TUNNEL_PROCESS_FWD_LB_PROCESS:
 			printf("udp or tcp\n");
@@ -224,6 +229,14 @@ int register_l4_tunnel_node(int socket_id)
 			"l2-overlay-node");
 		goto error_detach_node_from_class;
 	}
+	if(set_node_to_node_edge((char*)pnode->name,
+		L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L3_NODE,
+		"l3-overlay-node")){
+		E3_ERROR("setting node:%s edge:%d to %s fails\n",(char*)pnode->name,
+			L4_TUNNEL_PROCESS_NEXT_EDGE_TO_OVERLAY_L3_NODE,
+			"l3-overlay-node");
+		goto error_detach_node_from_class;
+	}
 	
 	E3_LOG("register node:%s on lcore %d\n",(char*)pnode->name,pnode->lcore_id);
 	return 0;
@@ -272,6 +285,6 @@ void l4_tunnel_process_node_early_init(void)
 			register_l4_tunnel_node(socket_id);
 	}
 }
-E3_init(l4_tunnel_process_node_early_init,TASK_PRIORITY_EXTRA_LOW);
+E3_init(l4_tunnel_process_node_early_init,TASK_PRIORITY_ULTRA_LOW);
 
 

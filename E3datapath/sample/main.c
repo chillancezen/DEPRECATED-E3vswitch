@@ -126,7 +126,7 @@ main(int argc, char **argv)
 	l3iface->if_type=L3_INTERFACE_TYPE_VIRTUAL;
 	l3iface->lower_if_index=0;
 	l3iface->if_ip_as_u32=MAKE_IP32(4,4,4,44);
-	copy_ether_address(l3iface->if_mac,"\x22\xe1\x5b\x6b\x6d\x22");
+	copy_ether_address(l3iface->if_mac,"\x22\x95\x5b\x6b\x6d\x22");
 	register_l3_interface(l3iface);
 	
 	struct real_server *rs=allocate_real_server();

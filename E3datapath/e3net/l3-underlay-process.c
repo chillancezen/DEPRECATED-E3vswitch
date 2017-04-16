@@ -39,6 +39,7 @@ int l3_under_process_poll_func(void * arg)
 			if((idx+1)<nr_mbufs)
 				rte_prefetch1(rte_pktmbuf_mtod(mbufs[idx+1],void*));
 		}
+		target_l3iface=NULL;
 		port=mbufs[idx]->port;
 		pe3if=find_e3iface_by_index(port);
 		if(!is_e3interface_available(pe3if))
@@ -77,18 +78,10 @@ int l3_under_process_poll_func(void * arg)
 		mbufs[idx]->l3_len=(ip_hdr->version_ihl&0xf)<<2;
 		mbufs[idx]->ol_flags=PKT_TX_IPV4|PKT_TX_IP_CKSUM;
 		/*modify ethernet layer header*/
-		eth_hdr->d_addr.addr_bytes[0]=eth_hdr->s_addr.addr_bytes[0];
-		eth_hdr->d_addr.addr_bytes[1]=eth_hdr->s_addr.addr_bytes[1];
-		eth_hdr->d_addr.addr_bytes[2]=eth_hdr->s_addr.addr_bytes[2];
-		eth_hdr->d_addr.addr_bytes[3]=eth_hdr->s_addr.addr_bytes[3];
-		eth_hdr->d_addr.addr_bytes[4]=eth_hdr->s_addr.addr_bytes[4];
-		eth_hdr->d_addr.addr_bytes[5]=eth_hdr->s_addr.addr_bytes[5];
-		eth_hdr->s_addr.addr_bytes[0]=pe3if->mac_addr.addr_bytes[0];
-		eth_hdr->s_addr.addr_bytes[1]=pe3if->mac_addr.addr_bytes[1];
-		eth_hdr->s_addr.addr_bytes[2]=pe3if->mac_addr.addr_bytes[2];
-		eth_hdr->s_addr.addr_bytes[3]=pe3if->mac_addr.addr_bytes[3];
-		eth_hdr->s_addr.addr_bytes[4]=pe3if->mac_addr.addr_bytes[4];
-		eth_hdr->s_addr.addr_bytes[5]=pe3if->mac_addr.addr_bytes[5];
+		copy_ether_address(eth_hdr->d_addr.addr_bytes,eth_hdr->s_addr.addr_bytes);
+		copy_ether_address(eth_hdr->s_addr.addr_bytes,pe3if->mac_addr.addr_bytes);
+		
+		
 		if(mbufs[idx]->vlan_tci)
 			mbufs[idx]->ol_flags|=PKT_TX_VLAN_PKT;
 		nr_delivered=deliver_mbufs_to_node(pe3if->output_node_arrar[0],&mbufs[idx],1);

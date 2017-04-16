@@ -32,6 +32,7 @@ int l2_under_process_poll_func(void * arg)
 		return 0;
 	/*construct arp respone packet,*/
 	for(idx=0;idx<nr_mbufs;idx++){
+		target_l3iface=NULL;
 		port=mbufs[idx]->port;
 		
 		{/*prefetch next mbuf's payload into L1 cache*/
@@ -64,30 +65,10 @@ int l2_under_process_poll_func(void * arg)
 		arp_hdr->arp_op=0x0200;
 		arp_hdr->arp_data.arp_tip=arp_hdr->arp_data.arp_sip;
 		arp_hdr->arp_data.arp_sip=target_l3iface->if_ip_as_u32;
-		arp_hdr->arp_data.arp_tha.addr_bytes[0]=arp_hdr->arp_data.arp_sha.addr_bytes[0];
-		arp_hdr->arp_data.arp_tha.addr_bytes[1]=arp_hdr->arp_data.arp_sha.addr_bytes[1];
-		arp_hdr->arp_data.arp_tha.addr_bytes[2]=arp_hdr->arp_data.arp_sha.addr_bytes[2];
-		arp_hdr->arp_data.arp_tha.addr_bytes[3]=arp_hdr->arp_data.arp_sha.addr_bytes[3];
-		arp_hdr->arp_data.arp_tha.addr_bytes[4]=arp_hdr->arp_data.arp_sha.addr_bytes[4];
-		arp_hdr->arp_data.arp_tha.addr_bytes[5]=arp_hdr->arp_data.arp_sha.addr_bytes[5];
-		arp_hdr->arp_data.arp_sha.addr_bytes[0]=pe3if->mac_addr.addr_bytes[0];
-		arp_hdr->arp_data.arp_sha.addr_bytes[1]=pe3if->mac_addr.addr_bytes[1];
-		arp_hdr->arp_data.arp_sha.addr_bytes[2]=pe3if->mac_addr.addr_bytes[2];
-		arp_hdr->arp_data.arp_sha.addr_bytes[3]=pe3if->mac_addr.addr_bytes[3];
-		arp_hdr->arp_data.arp_sha.addr_bytes[4]=pe3if->mac_addr.addr_bytes[4];
-		arp_hdr->arp_data.arp_sha.addr_bytes[5]=pe3if->mac_addr.addr_bytes[5];
-		eth_hdr->d_addr.addr_bytes[0]=eth_hdr->s_addr.addr_bytes[0];
-		eth_hdr->d_addr.addr_bytes[1]=eth_hdr->s_addr.addr_bytes[1];
-		eth_hdr->d_addr.addr_bytes[2]=eth_hdr->s_addr.addr_bytes[2];
-		eth_hdr->d_addr.addr_bytes[3]=eth_hdr->s_addr.addr_bytes[3];
-		eth_hdr->d_addr.addr_bytes[4]=eth_hdr->s_addr.addr_bytes[4];
-		eth_hdr->d_addr.addr_bytes[5]=eth_hdr->s_addr.addr_bytes[5];
-		eth_hdr->s_addr.addr_bytes[0]=pe3if->mac_addr.addr_bytes[0];
-		eth_hdr->s_addr.addr_bytes[1]=pe3if->mac_addr.addr_bytes[1];
-		eth_hdr->s_addr.addr_bytes[2]=pe3if->mac_addr.addr_bytes[2];
-		eth_hdr->s_addr.addr_bytes[3]=pe3if->mac_addr.addr_bytes[3];
-		eth_hdr->s_addr.addr_bytes[4]=pe3if->mac_addr.addr_bytes[4];
-		eth_hdr->s_addr.addr_bytes[5]=pe3if->mac_addr.addr_bytes[5];
+		copy_ether_address(arp_hdr->arp_data.arp_tha.addr_bytes,arp_hdr->arp_data.arp_sha.addr_bytes);
+		copy_ether_address(arp_hdr->arp_data.arp_sha.addr_bytes,pe3if->mac_addr.addr_bytes);
+		copy_ether_address(eth_hdr->d_addr.addr_bytes,eth_hdr->s_addr.addr_bytes);
+		copy_ether_address(eth_hdr->s_addr.addr_bytes,pe3if->mac_addr.addr_bytes);
 		if(mbufs[idx]->vlan_tci)
 			mbufs[idx]->ol_flags|=PKT_TX_VLAN_PKT;
 		nr_delivered=deliver_mbufs_to_node(pe3if->output_node_arrar[0],&mbufs[idx],1);
