@@ -204,6 +204,7 @@ int lb_device_input_node_process_func(void *arg)
 	uint64_t last_classification_fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
 	uint32_t last_classification_hash=0;
 	uint32_t last_classification_packet_type=0;
+	uint16_t last_classification_port=-1;
 	
 	DEF_EXPRESS_DELIVERY_VARS();
 	RESET_EXPRESS_DELIVERY_VARS();
@@ -233,13 +234,15 @@ int lb_device_input_node_process_func(void *arg)
 					#endif
 				case NIC_INTEL_XL710:
 					if((last_classification_hash==mbufs[iptr]->hash.fdir.lo)&&
-						(last_classification_packet_type==mbufs[iptr]->packet_type))
+						(last_classification_packet_type==mbufs[iptr]->packet_type)&&
+						(last_classification_port==mbufs[iptr]->port))
 						fwd_id=last_classification_fwd_id;
 					else{
 						fwd_id=nic_intel_xl710_classification(pnode,mbufs[iptr],pif);
 						last_classification_hash=mbufs[iptr]->hash.fdir.lo;
 						last_classification_packet_type=mbufs[iptr]->packet_type;
 						last_classification_fwd_id=fwd_id;
+						last_classification_port=mbufs[iptr]->port;
 					}
 					break;
 				case NIC_INTEL_82599:

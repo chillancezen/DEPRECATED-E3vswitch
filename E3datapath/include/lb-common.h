@@ -34,7 +34,7 @@ struct real_server{
 	uint32_t __key tunnel_id:24;/*project network vxlan segment ID*/
 	uint8_t __key rs_mac[6];/*vNIV mac create by neutron port*/
 	uint8_t  rs_host_mac[6];
-	uint16_t lb_iface;/*VM routes traffic to LB by routing traffic to 
+	uint16_t lb_iface;/*l3-interface index:VM routes traffic to LB by routing traffic to 
 	the neutron port where an entity will delegate the basic L3 functions*/
 	uint16_t rs_host_ipv4_identity;/*it increments every time a packet is sento real-server*/
 	uint16_t lb_instance_index;/*identity which lb instance this real-server belongs to*/
@@ -73,7 +73,7 @@ struct l3_interface{
 }__attribute__((aligned(64)));
 
 #define MAX_MEMBER_LENGTH 128
-#define INDIRECTION_TABLE_MASK (MAX_MEMBER_LENTTH-1)
+#define INDIRECTION_TABLE_MASK (MAX_MEMBER_LENGTH-1)
 
 struct lb_instance{
 	uint16_t indirection_table[MAX_MEMBER_LENGTH];

@@ -115,6 +115,14 @@ main(int argc, char **argv)
 	l3iface->if_ip_as_u32=MAKE_IP32(4,4,4,44);
 	copy_ether_address(l3iface->if_mac,"\x22\x95\x5b\x6b\x6d\x22");
 	register_l3_interface(l3iface);
+
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_VIRTUAL;
+	l3iface->lower_if_index=0;
+	l3iface->if_ip_as_u32=MAKE_IP32(5,5,5,55);
+	copy_ether_address(l3iface->if_mac,"\x22\x95\x5b\x6b\x6d\x23");
+	register_l3_interface(l3iface);
+	
 	
 	struct real_server *rs=allocate_real_server();
 	rs->tunnel_id=VNI_SWAP_ORDER(3685);
@@ -122,16 +130,38 @@ main(int argc, char **argv)
 	rs->lb_iface=2;
 	copy_ether_address(rs->rs_mac,"\x82\xe1\x5b\x6b\x6d\x2c");
 	printf("register rc:%d\n",register_real_server(rs));
-	printf("register rc lb-iface:%d\n",rs->lb_iface);
+	printf("register rc lb-local-index:%d\n",rs->local_index);
+
+	rs=allocate_real_server();
+	rs->tunnel_id=VNI_SWAP_ORDER(3686);
+	rs->rs_ipv4=MAKE_IP32(5,5,5,5);
+	rs->lb_iface=3;
+	copy_ether_address(rs->rs_mac,"\x96\x3d\xb1\xcf\x3a\x96");
+	printf("register rc:%d\n",register_real_server(rs));
+	printf("register rc lb-local-index:%d\n",rs->local_index);
 
 
 	/*register vip resource*/
 	struct virtual_ip * vip=allocate_virtual_ip();
 	vip->ip_as_u32=MAKE_IP32(130,140,151,1);
 	vip->virt_if_index=1;
+	vip->lb_instance_index=0;
 	register_virtual_ip(vip);
+	copy_ether_address(vip->next_mac,"\x3c\xfd\xfe\x9e\x97\x26");
+	
+	struct lb_instance * lb=allocate_lb_instance("lb-test");
+	register_lb_instance(lb);
+	lb->vip_index=0;
+	
+	add_real_server_num_into_lb_member_pool(lb,0);
+	//add_real_server_num_into_lb_member_pool(lb,1);
+	dump_lb_members(lb);
+	dump_l3_interfaces(stdout);
 
-
+	
+	
+	
+	#if 0
 	struct lb_instance * lb=allocate_lb_instance("lb-test");
 	lb->vip_index=0;
 	register_lb_instance(lb);
@@ -148,12 +178,6 @@ main(int argc, char **argv)
 
 	//del_real_server_num_from_lb_member_pool(lb,6);
 	//dump_lb_members(lb);
-	dump_l3_interfaces(stdout);
-
-	
-	
-	
-	#if 0
 	l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
 	l3iface->lower_if_index=2;
