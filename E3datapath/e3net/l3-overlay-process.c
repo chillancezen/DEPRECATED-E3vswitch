@@ -74,7 +74,7 @@ int l3_overlay_process_func(void * arg)
 		csum+=0xfff7;
 		while(csum>>16)
 			csum=(csum&0xffff)+(csum>>16);
-		inner_icmp_hdr->icmp_cksum=csum&0xffff;
+		inner_icmp_hdr->icmp_cksum=(~csum)&0xffff;
 		inner_ip_hdr->dst_addr=preal_svr->rs_ipv4;
 		inner_ip_hdr->src_addr=plocal_l3iface->if_ip_as_u32;
 		inner_ip_hdr->time_to_live=127;

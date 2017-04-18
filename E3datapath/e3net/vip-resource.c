@@ -50,6 +50,11 @@ int register_virtual_ip(struct virtual_ip *vip)
 		rcu_assign_pointer(gvip_array[idx],NULL);
 		return -4;
 	}
+	E3_LOG("register virtual ip:%d.%d.%d.%d with l3 interface:%d\n",vip->ip_as_u8[0]
+		,vip->ip_as_u8[1]
+		,vip->ip_as_u8[2]
+		,vip->ip_as_u8[3],
+		vip->virt_if_index);
 	return 0;
 }
 

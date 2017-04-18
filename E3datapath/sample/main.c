@@ -99,27 +99,14 @@ main(int argc, char **argv)
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,1);
 	register_l3_interface(l3iface);
 
-	l3iface=allocate_l3_interface();
-	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
-	l3iface->lower_if_index=1;
-	l3iface->vlan_vid=507;
-	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,3);
-	register_l3_interface(l3iface);
-
-
+	
 	l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
 	l3iface->lower_if_index=1;
 	l3iface->vlan_vid=508;
-	l3iface->if_ip_as_u32=MAKE_IP32(130,140,151,4);
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,151,1);
 	register_l3_interface(l3iface);
 	
-	l3iface=allocate_l3_interface();
-	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
-	l3iface->lower_if_index=2;
-	l3iface->vlan_vid=0;
-	l3iface->if_ip_as_u32=MAKE_IP32(130,140,160,1);
-	register_l3_interface(l3iface);
 
 	/*register a tunnel L3 interface on interface:130,140,150,1*/
 	l3iface=allocate_l3_interface();
@@ -132,19 +119,53 @@ main(int argc, char **argv)
 	struct real_server *rs=allocate_real_server();
 	rs->tunnel_id=VNI_SWAP_ORDER(3685);
 	rs->rs_ipv4=MAKE_IP32(4,4,4,4);
-	rs->lb_iface=4;
+	rs->lb_iface=2;
 	copy_ether_address(rs->rs_mac,"\x82\xe1\x5b\x6b\x6d\x2c");
 	printf("register rc:%d\n",register_real_server(rs));
 	printf("register rc lb-iface:%d\n",rs->lb_iface);
 
-	
+
+	/*register vip resource*/
+	struct virtual_ip * vip=allocate_virtual_ip();
+	vip->ip_as_u32=MAKE_IP32(130,140,151,1);
+	vip->virt_if_index=1;
+	register_virtual_ip(vip);
+
+
+	struct lb_instance * lb=allocate_lb_instance("lb-test");
+	lb->vip_index=0;
+	register_lb_instance(lb);
+	int idx=0;
+	for(idx=0;idx<16;idx++)
+		add_real_server_num_into_lb_member_pool(lb,idx);
+	dump_lb_members(lb);
+	add_real_server_num_into_lb_member_pool(lb,127);
+	dump_lb_members(lb);
+	getchar();
+	for(idx=0;idx<120;idx++)
+		del_real_server_num_from_lb_member_pool(lb,idx);
+	dump_lb_members(lb);
+
+	//del_real_server_num_from_lb_member_pool(lb,6);
+	//dump_lb_members(lb);
 	dump_l3_interfaces(stdout);
 
 	
 	
 	
 	#if 0
-	
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=2;
+	l3iface->vlan_vid=0;
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,160,1);
+	register_l3_interface(l3iface);
+	l3iface=allocate_l3_interface();
+		l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+		l3iface->lower_if_index=1;
+		l3iface->vlan_vid=507;
+		l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,3);
+		register_l3_interface(l3iface);
 	
 	struct lb_instance * lb=allocate_lb_instance("lb-test");
 	E3_ASSERT(lb);

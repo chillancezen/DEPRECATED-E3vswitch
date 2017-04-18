@@ -77,6 +77,8 @@ even if we know naming is not as that good*/
 #define LB_DEVICE_INPUT_FWD_L4_PROCESS 0x3
 #define LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS 0x4
 #define LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS 0x5
+#define LB_DEVICE_INPUT_FWD_EXTERNAL_INPUT_PROCESS 0x6
+
 __attribute__((always_inline))static inline int _lb_device_input_node_post_process(
 	struct node * pnode,
 	struct rte_mbuf **mbufs,
@@ -114,6 +116,14 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 			drop_start=nr_delivered;
 			nr_dropped=nr_mbufs-nr_delivered;
 			break;
+		case LB_DEVICE_INPUT_FWD_EXTERNAL_INPUT_PROCESS:
+			nr_delivered=deliver_mbufs_by_next_entry(pnode,
+				L2_NEXT_EDGE_EXTERNAL_INPUT,
+				mbufs,
+				nr_mbufs);
+			drop_start=nr_delivered;
+			nr_dropped=nr_mbufs-nr_delivered;
+			break;
 		default:
 			nr_dropped=nr_mbufs;
 			break;
@@ -128,7 +138,7 @@ __attribute__((always_inline)) static inline uint64_t nic_intel_xl710_classifica
 	struct rte_mbuf* mbuf,
 	struct E3interface * pif)
 {
-	
+	/*intel xl710 can be both internal and external*/
 	uint64_t fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
 	if(mbuf->l2_type==RTE_PTYPE_L2_ETHER_ARP)
 		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L2_ARP_PROCESS,0);
@@ -142,6 +152,9 @@ __attribute__((always_inline)) static inline uint64_t nic_intel_xl710_classifica
 				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS,0);
 			else if(mbuf->l4_type==(RTE_PTYPE_L4_UDP>>8))
 				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS,0);
+		}else if(pif->port_type==PORT_TYPE_LB_EXTERNAL){
+			if((mbuf->l4_type==(RTE_PTYPE_L4_UDP>>8))||(mbuf->l4_type==(RTE_PTYPE_L4_TCP>>8)))
+				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_EXTERNAL_INPUT_PROCESS,0);
 		}
 	}
 	return fwd_id;
@@ -152,10 +165,13 @@ __attribute__((always_inline)) static inline uint64_t nic_intel_82599_classifica
 	struct rte_mbuf* mbuf,
 	struct E3interface * pif)
 {
-	/*when classify trtaffic on Intel 82599,it's essential to inspect the packet payload*/
+	/*when classify trtaffic on Intel 82599,it can only be external
+	,it's essential to inspect the packet payload*/
+	
 	uint64_t fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
 	struct ether_hdr * eth_hdr=rte_pktmbuf_mtod(mbuf,struct ether_hdr *);
 	struct ipv4_hdr * ip_hdr;
+	
 	switch(eth_hdr->ether_type)
 	{
 		case 0x0608:
@@ -165,6 +181,8 @@ __attribute__((always_inline)) static inline uint64_t nic_intel_82599_classifica
 			ip_hdr=(struct ipv4_hdr *)(eth_hdr+1);
 			if(ip_hdr->next_proto_id==0x1)
 				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_L3_ICMP_PROCESS,0);
+			else if((ip_hdr->next_proto_id==0x11) || (ip_hdr->next_proto_id==6))
+				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_EXTERNAL_INPUT_PROCESS,0);
 			break;
 	}
 	return fwd_id;
@@ -205,15 +223,15 @@ int lb_device_input_node_process_func(void *arg)
 			/*TODO:cache recent packets with their packet-type,hash to identify subsequent packets*/
 			switch(pif->hardware_nic_type)
 			{
-				case NIC_INTEL_XL710:
 					#if 0
-					printf("type:%x of:%p vlan:%d %4x-%4x l2:%d\n",mbufs[iptr]->packet_type,
-						(void*)mbufs[iptr]->ol_flags,
-						mbufs[iptr]->vlan_tci,
-						mbufs[iptr]->hash.fdir.hash,
-						mbufs[iptr]->hash.fdir.id,
-						mbufs[iptr]->l2_len);
+					printf("type:%x of:%p vlan:%d %4x-%4x l2:%d\n",mbuf->packet_type,
+						(void*)mbuf->ol_flags,
+						mbuf->vlan_tci,
+						mbuf->hash.fdir.hash,
+						mbuf->hash.fdir.id,
+						mbuf->l2_len);
 					#endif
+				case NIC_INTEL_XL710:
 					if((last_classification_hash==mbufs[iptr]->hash.fdir.lo)&&
 						(last_classification_packet_type==mbufs[iptr]->packet_type))
 						fwd_id=last_classification_fwd_id;
@@ -356,8 +374,12 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 		ops.edges[2].fwd_behavior=NODE_TO_CLASS_FWD;
 		ops.edges[2].edge_entry=L2_NEXT_EDGE_L4_TUNNEL_PROCESS;
 		ops.edges[2].next_ref="l4-tunnel-class";
+
+		ops.edges[3].fwd_behavior=NODE_TO_CLASS_FWD;
+		ops.edges[3].edge_entry=L2_NEXT_EDGE_EXTERNAL_INPUT;
+		ops.edges[3].next_ref="external-input";
 		
-		ops.predefined_edges=3;
+		ops.predefined_edges=4;
 	}
 	rc=register_native_mq_dpdk_port(params,
 		&ops,

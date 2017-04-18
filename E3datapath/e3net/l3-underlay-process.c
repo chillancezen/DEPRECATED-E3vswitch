@@ -68,7 +68,7 @@ int l3_under_process_poll_func(void * arg)
 		csum+=0xfff7;
 		while(csum>>16)
 			csum=(csum&0xffff)+(csum>>16);
-		icmp_hdr->icmp_cksum=csum&0xffff;
+		icmp_hdr->icmp_cksum=(~csum)&0xffff;
 		/*modify IP header,leave cheksum calcalation to hardware function*/
 		ip_hdr->dst_addr=ip_hdr->src_addr;
 		ip_hdr->src_addr=target_l3iface->if_ip_as_u32;

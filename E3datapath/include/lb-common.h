@@ -16,14 +16,14 @@ struct virtual_ip{
 		uint8_t ip_as_u8[4];
 	};
 	uint32_t next_hop_ip;
-	uint8_t next_mac[6];/*only ARP-snooping can do modify mac*/
+	uint8_t next_mac[6];/*todo:ARP-snooping can do modify mac*/
 	
 	
 	struct rcu_head rcu;
 	void (*vip_reclaim_function)(struct rcu_head*);
 	uint16_t local_index;
-	uint16_t phy_if_index;
-	uint16_t vir_if_index;
+	
+	uint16_t virt_if_index;/*registered l3 interface*/
 	uint16_t __foreign lb_instance_index;
 	
 }__attribute__((aligned(64)));
@@ -37,7 +37,7 @@ struct real_server{
 	uint16_t lb_iface;/*VM routes traffic to LB by routing traffic to 
 	the neutron port where an entity will delegate the basic L3 functions*/
 	uint16_t rs_host_ipv4_identity;/*it increments every time a packet is sento real-server*/
-	
+	uint16_t lb_instance_index;/*identity which lb instance this real-server belongs to*/
 	
 	uint16_t local_index;
 	struct rcu_head rcu;

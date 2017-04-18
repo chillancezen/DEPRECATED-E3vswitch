@@ -21,6 +21,7 @@
 #define L2_NEXT_EDGE_L2_PROCESS 0x0
 #define L2_NEXT_EDGE_L3_PROCESS 0x1
 #define L2_NEXT_EDGE_L4_TUNNEL_PROCESS 0x2
+#define L2_NEXT_EDGE_EXTERNAL_INPUT 0x3
 
 int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pport_id);
 

@@ -13,7 +13,7 @@ void unregister_virtual_ip(struct virtual_ip *vip);
 struct virtual_ip* allocate_virtual_ip(void);
 void default_virtual_ip_reclaim_fun(struct rcu_head * rcu);
 
-#define find_virtual_ip_at_index(idx) (((idx)<MAX_VIP_NR)?\
+#define find_virtual_ip_at_index(idx) ((((idx)<MAX_VIP_NR)&&((idx)>=0))?\
 	((struct virtual_ip *)rcu_dereference(gvip_array[(idx)])): \
 	NULL)
 	
