@@ -140,7 +140,7 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 	mq_port_conf.txmode.mq_mode=ETH_MQ_TX_NONE;
 	mq_port_conf.rx_adv_conf.rss_conf.rss_key=NULL;
 	mq_port_conf.rx_adv_conf.rss_conf.rss_hf=dev_ops->hash_function;
-	mq_port_conf.fdir_conf.mode=RTE_FDIR_MODE_SIGNATURE;/*enable ptype classification*/
+	mq_port_conf.fdir_conf.mode=RTE_FDIR_MODE_PERFECT;/*enable ptype classification*/
 	
 	rc=rte_eth_dev_configure(port_id,pif->nr_queues,pif->nr_queues,&mq_port_conf);
 	if(rc<0){
@@ -179,12 +179,14 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 	}
 	/*start device*/
 	rte_eth_macaddr_get(port_id,&pif->mac_addr);
+	pif->port_status=PORT_STATUS_DOWN;
+	#if 0	
 	rc=rte_eth_dev_start(port_id);
-	
 	if(rc<0){
-		E3_ERROR("errors occur during dev startup setup phase:%s\n",params);
+		E3_ERROR("errors occur during dev startup  phase:%s\n",params);
 		goto error_node_registration;
 	}
+	#endif
 	rte_eth_link_get_nowait(port_id,&pif->link_info);
 	{
 		rte_eth_dev_get_name_by_port(port_id,dev_data_name);
@@ -409,6 +411,21 @@ int checksum_cap_check(int port_id)
 	error_check:
 		return -1;
 }
+int start_e3_interface(int iface)
+{
+	int rc;
+	struct E3interface * pe3_iface=find_e3iface_by_index(iface);
+	if(!pe3_iface)
+		return -1;
+	if(!pe3_iface->if_avail_ptr)
+		return -2;
+	rc=rte_eth_dev_start(pe3_iface->port_id);
+	if(!rc){
+		pe3_iface->port_status=PORT_STATUS_UP;
+	}
+	return rc;
+}
+
 #if 0
 #include <rte_ether.h>
 #include <rte_ip.h>

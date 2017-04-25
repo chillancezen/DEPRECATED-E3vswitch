@@ -4,11 +4,15 @@
 #include <urcu-qsbr.h>
 #include <string.h>
 #include <stdio.h>
-
+#include <e3_bitmap.h>
 
 #define MAX_NR_NODE_CLASSES 256
 #define MAX_NODECLASS_NAME_LEN 64
-#define MAX_NODE_IN_CLASS 8
+
+#define MAX_NODE_IN_CLASS 16
+#define MAX_NODE_IN_CLASS_NODES_POOL 16 
+
+
 typedef void (*node_class_rcu_callback)(struct rcu_head * rcu);
 struct node ;
 
@@ -34,9 +38,13 @@ struct node_class{
 	uint16_t node_class_index;
 	node_class_rcu_callback class_reclaim_func;
 	void * node_class_priv;
-	
+	e3_bitmap bitmap_avail;
+	uint16_t nodes_pool[MAX_NODE_IN_CLASS_NODES_POOL];
+	/*2017.4.20 nodes pools are public and less ordered,
+	I add this for scalability reason*/
 	__attribute__((aligned(64))) uint64_t cacheline2[0];
 	struct node_entry node_entries[MAX_NODE_IN_CLASS];
+	/*while entries are ordered,like vectors*/
 }__attribute__((aligned(64)));
 
 extern struct node_class * gnode_class_array[MAX_NR_NODE_CLASSES];
@@ -104,14 +112,20 @@ __attribute__((always_inline)) static inline struct node_class * find_node_class
 }
 __attribute__((always_inline)) static  inline struct node_class* find_node_class_by_index(int index)
 {
-	return (index>=MAX_NR_NODE_CLASSES)?NULL:rcu_dereference(gnode_class_array[index]);
+	return ((index>=MAX_NR_NODE_CLASSES)||(index<0))?NULL:rcu_dereference(gnode_class_array[index]);
 }
 
 /*it's not recommanded to use _ beginning function.*/
 int _add_node_into_nodeclass(struct node_class *pclass,struct node *pnode);
-int add_node_into_nodeclass(const char* class_name,const char* node_name);
+int  add_node_into_nodeclass(const char* class_name,const char* node_name);
 
 int _delete_node_from_nodeclass(struct node_class *pclass,struct node *pnode);
-int delete_node_from_nodeclass(const char* class_name,const char* node_name);
+int  delete_node_from_nodeclass(const char* class_name,const char* node_name);
 void dump_node_class(FILE* fp);
+
+int _add_node_into_nodeclass_pool(struct node_class * pclass,struct node* pnode);
+int  add_node_into_nodeclass_pool(const char* class_name,const char* node_name);
+int _delete_node_from_nodeclass_pool(struct node_class * pclass,struct node* pnode);
+int  delete_node_from_nodeclass_pool(const char* class_name,const char* node_name);
+
 #endif

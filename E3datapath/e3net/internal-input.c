@@ -117,7 +117,7 @@ __attribute__((always_inline))static inline
 	int idx=0;
 	int drop_start=0;
 	int nr_dropped=0;
-	int nr_delivered;
+	int nr_delivered=0;
 	uint32_t low_part;
 	uint16_t port_id;
 	uint16_t queue_id;
@@ -133,7 +133,8 @@ __attribute__((always_inline))static inline
 				nr_dropped=nr_mbufs;
 				break;
 			}
-			nr_delivered=deliver_mbufs_to_node(pe3_iface->output_node_arrar[queue_id],
+			nr_delivered=deliver_mbufs_to_e3iface(pe3_iface,
+				queue_id,
 				mbufs,
 				nr_mbufs);
 			drop_start=nr_delivered;
@@ -143,6 +144,8 @@ __attribute__((always_inline))static inline
 			nr_dropped=nr_mbufs;
 			break;
 	}
+	pnode->nr_tx_packets+=nr_delivered;
+	pnode->nr_drop_packets+=nr_dropped;
 	for(idx=0;idx<nr_dropped;idx++)
 		rte_pktmbuf_free(mbufs[drop_start+idx]);
 	return 0;
@@ -163,6 +166,7 @@ int internal_input_node_process_func(void* arg)
 	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,(void**)mbufs,64);
 	if(!nr_mbufs)
 		return 0;
+	pnode->nr_rx_packets+=nr_mbufs;
 	pre_setup_env(nr_mbufs);
 	while((iptr=peek_next_mbuf())>=0){
 		prefetch_next_mbuf(mbufs,iptr);
@@ -189,7 +193,7 @@ int internal_input_node_process_func(void* arg)
 	return 0;
 }
 static int internal_input_node_indictor=0;
-int register_internal_input_node(int socket_id)
+int register_internal_input_node(int socket_id,int register_into_class_entry)
 {
 	struct node * pnode=NULL;
 	pnode=rte_zmalloc_socket(NULL,sizeof(struct node),64,socket_id);
@@ -217,10 +221,16 @@ int register_internal_input_node(int socket_id)
 		goto error_node_dealloc;
 	}
 	E3_ASSERT(find_node_by_name((char*)pnode->name)==pnode);
-
-	if(add_node_into_nodeclass(INTERNAL_INPUT_CLASS_NAME,(char*)pnode->name)){
-		E3_ERROR("adding node:%s to class:%s fails\n",(char*)pnode->name,INTERNAL_INPUT_CLASS_NAME);
-		goto error_node_unregister;
+	if(register_into_class_entry){
+		if(add_node_into_nodeclass(INTERNAL_INPUT_CLASS_NAME,(char*)pnode->name)){
+			E3_ERROR("adding node:%s to class:%s fails\n",(char*)pnode->name,INTERNAL_INPUT_CLASS_NAME);
+			goto error_node_unregister;
+		}
+	}else{
+		if(add_node_into_nodeclass_pool(INTERNAL_INPUT_CLASS_NAME,(char*)pnode->name)){
+			E3_ERROR("adding node:%s to class nodes pool:%s fails\n",(char*)pnode->name,INTERNAL_INPUT_CLASS_NAME);
+			goto error_node_unregister;
+		}
 	}
 	if(attach_node_to_lcore(pnode)){
 		E3_ERROR("attaching node:%s to lcore fails\n",(char*)pnode->name);
@@ -249,7 +259,12 @@ void internal_input_node_early_init(void)
 	int socket_id;
 	foreach_numa_socket(socket_id){
 		for(idx=0;idx<INTERNAL_INPUT_NODES_PER_SOCKET;idx++)
-			register_internal_input_node(socket_id);
+			register_internal_input_node(socket_id,1);
+	}
+
+	foreach_numa_socket(socket_id){
+		for(idx=0;idx<INTERNAL_INPUT_NODES_PER_SOCKET_PUBLIC_POOL;idx++)
+			register_internal_input_node(socket_id,0);
 	}
 }
 E3_init(internal_input_node_early_init,TASK_PRIORITY_ULTRA_LOW);

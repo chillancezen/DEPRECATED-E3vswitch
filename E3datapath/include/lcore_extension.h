@@ -6,7 +6,7 @@
 #define MAX_SOCKET_SUPPORTED 8
 
 #define MEMPOOL_CACHE_SIZE 256
-#define DEFAULT_NR_MBUF_PERSOCKET (1024*16)
+#define DEFAULT_NR_MBUF_PERSOCKET (1024*64)
 
 
 #define PRESERVE_MASTER_LCORE /*preserve master lcore for control plane purpose*/

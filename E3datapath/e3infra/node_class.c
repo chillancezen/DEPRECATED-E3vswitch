@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <node.h>
 #include <node_class.h>
-
+#include <x86intrin.h>
 
 
 struct node_class * gnode_class_array[MAX_NR_NODE_CLASSES];
@@ -25,6 +25,7 @@ int register_node_class(struct node_class *nclass)
 			break;
 	if(idx==MAX_NR_NODE_CLASSES)
 		return -2;
+	e3_bitmap_init(nclass->bitmap_avail);
 	nclass->node_class_index=idx;
 	rcu_assign_pointer(gnode_class_array[idx],nclass);
 	return 0;
@@ -48,9 +49,10 @@ void dump_node_class(FILE* fp)
 {	
 	struct node_class * pclass=NULL;
 	FOREACH_NODE_CLASS_START(pclass){
-		fprintf(fp,"node class :%d %s\n",
-			pclass->node_class_index,
-			pclass->class_name);
+		if(fp!=fp_log)
+			fprintf(fp,"node class :%d %s\n",pclass->node_class_index,pclass->class_name);
+		else
+			E3_LOG("node class :%d %s\n",pclass->node_class_index,pclass->class_name);
 	}
 	FOREACH_NODE_CLASS_END();
 }
@@ -122,5 +124,55 @@ int delete_node_from_nodeclass(const char* class_name,const char* node_name)
 	if(!pclass || !pnode)
 		return -1;
 	return _delete_node_from_nodeclass(pclass,pnode);
+}
+
+int _add_node_into_nodeclass_pool(struct node_class * pclass,struct node* pnode)
+{
+	int idx=0;
+	for(idx=0;idx<MAX_NODE_IN_CLASS_NODES_POOL;idx++)
+		if(e3_bitmap_is_bit_set(pclass->bitmap_avail,idx)&&
+			pclass->nodes_pool[idx]==pnode->node_index)
+			return -1;/*already in the pool*/
+	for(idx=0;idx<MAX_NODE_IN_CLASS_NODES_POOL;idx++)
+		if(!e3_bitmap_is_bit_set(pclass->bitmap_avail,idx))
+			break;
+	if(idx>=MAX_NODE_IN_CLASS_NODES_POOL)
+		return -2;/*no slots yet to accommodate new node*/
+	pclass->nodes_pool[idx]=pnode->node_index;
+	e3_bitmap_set_bit(pclass->bitmap_avail,idx);
+	_mm_sfence();
+	return 0;
+}
+int add_node_into_nodeclass_pool(const char* class_name,const char* node_name)
+{
+	struct node_class *pclass=find_node_class_by_name(class_name);
+	struct node * pnode=find_node_by_name(node_name);
+	if(!pclass || !pnode)
+		return -1;
+	return _add_node_into_nodeclass_pool(pclass,pnode);
+}
+
+int _delete_node_from_nodeclass_pool(struct node_class * pclass,struct node* pnode)
+{
+	int idx=0;
+	for(idx=0;idx<MAX_NODE_IN_CLASS_NODES_POOL;idx++){
+		if(e3_bitmap_is_bit_set(pclass->bitmap_avail,idx)&&
+			(pnode->node_index==pclass->nodes_pool[idx])){
+			pclass->nodes_pool[idx]=0;
+			e3_bitmap_clear_bit(pclass->bitmap_avail,idx);
+			_mm_sfence();
+			return 0;
+		}
+	}
+	return -1;
+}
+
+int delete_node_from_nodeclass_pool(const char* class_name,const char* node_name)
+{
+	struct node_class *pclass=find_node_class_by_name(class_name);
+	struct node * pnode=find_node_by_name(node_name);
+	if(!pclass || !pnode)
+		return -1;
+	return _add_node_into_nodeclass_pool(pclass,pnode);
 }
 

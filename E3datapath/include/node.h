@@ -47,30 +47,25 @@ struct next_entry{
 struct node{
 	uint8_t name[MAX_NODENAME_LEN];
 	__attribute__((aligned(64))) uint64_t cacheline1[0];
-	
 	/*read-most cache line*/
-	struct rcu_head rcu;
-	node_process_func node_process_func;
-	node_rcu_callback node_reclaim_func;
-	enum node_type node_type;
+	uint64_t nr_rx_packets;
+	uint64_t nr_tx_packets;
+	uint64_t nr_drop_packets;
 	uint16_t node_index;/*will be allocated by registery framework*/
 	uint8_t lcore_id;/*prioritize which cpu it will run on,must we take best effort ,do not gurantee that*/
 	uint8_t burst_size;/*default is 32,it could be larger if node is with higher priority,we 
 	schedule node by weighted fair algorithm*/
 	struct rte_ring *node_ring;
-	#if 0
-	union{
-		struct rte_ring *node_ring;
-		struct rte_mempool *node_pool;/*used by Input node*/
-	};
-	#endif
-	
 	struct node * next;/*pointer to next node in lcore task list*/
 	void * node_priv;/*it may point to node-main instance*/
 	
 	__attribute__((aligned(64))) uint64_t cacheline2[0];
 	struct next_entry fwd_entries[MAX_NR_EDGES];
 	__attribute__((aligned(64))) uint64_t cacheline3[0];
+	struct rcu_head rcu;
+	node_process_func node_process_func;
+	node_rcu_callback node_reclaim_func;
+	enum node_type node_type;
 	
 }__attribute__((aligned(64)));
 
@@ -112,6 +107,7 @@ int register_node(struct node *node);
 void unregister_node(struct node * node);
 int node_module_test(void);
 void dump_nodes(FILE*fp);
+void dump_node_stats(int node_index);
 
 
 

@@ -17,8 +17,8 @@
 #include <rte_tcp.h>
 #include <vxlan-encap.h>
 #define EXTERNAL_INPUT_CLASS_NAME "external-input"
-#define EXTERNAL_INPUT_NODES_PER_SOCKET 2
-
+#define EXTERNAL_INPUT_NODES_PER_SOCKET 4
+#define EXTERNAL_INPUT_NDOES_IN_POOLS_PER_SOCKET 8
 
 #define EXTERNAL_INPUT_PROCESS_FWD_DROP 0x0
 #define EXTERNAL_INPUT_PROCESS_FWD_XMIT 0x1
@@ -38,7 +38,7 @@ void external_input_process_class_early_init(void)
 E3_init(external_input_process_class_early_init,TASK_PRIORITY_LOW);
 
 
-#define NEXT_FWD_ID
+
 __attribute__((always_inline))
 	static inline uint64_t translate_inbound_packet(struct rte_mbuf * mbuf,
 	uint16_t *plast_cached_port,
@@ -65,6 +65,8 @@ __attribute__((always_inline))
 	struct ipv4_hdr  * ip_hdr=(struct ipv4_hdr*)(eth_hdr+1);
 	struct udp_hdr   * udp_hdr;
 	struct tcp_hdr   * tcp_hdr;
+
+	
 	if(PREDICT_TRUE(((mbuf->packet_type==*plast_cached_packet_type)&&
 		(mbuf->hash.fdir.lo==*plsst_cached_packet_hash)&&
 		(mbuf->port==*plast_cached_port)))){
@@ -78,6 +80,7 @@ __attribute__((always_inline))
 		nr_vip=search_virtual_ip_index(ip_hdr->dst_addr);
 		_(pvip=find_virtual_ip_at_index(nr_vip));
 		_(lb=find_lb_instance_at_index(pvip->lb_instance_index));
+
 		rs_index=lb->indirection_table[INDIRECTION_TABLE_MASK&mbuf->hash.fdir.lo];
 		_(preal_srv=find_real_server_at_index(rs_index));
 		*plast_cached_pvip=pvip;
@@ -88,13 +91,12 @@ __attribute__((always_inline))
 		*plast_cached_port=mbuf->port;
 		*plsst_cached_packet_hash=mbuf->hash.fdir.lo;
 	}
-
 	_(pvip&&lb&&preal_srv);
+	
 	_(rte_pktmbuf_prepend(mbuf,50));
 	_(plocal_l3iface=find_l3_interface_at_index(preal_srv->lb_iface));
 	_(pphy_l3iface=find_l3_interface_at_index(plocal_l3iface->lower_if_index));
 	_(pe3_iface=find_e3iface_by_index(pphy_l3iface->lower_if_index));
-	
 	
 	/*rewrite ip hdr and upper-layer pseudo header*/
 	ip_hdr->dst_addr=preal_srv->rs_ipv4;
@@ -129,6 +131,7 @@ __attribute__((always_inline))
 		pphy_l3iface,
 		pe3_iface,
 		0);
+	
 	nr_xmit_queue=mbuf->hash.fdir.lo%pe3_iface->nr_queues;
 
 	lo_part=MAKE_UINT32(pe3_iface->port_id,nr_xmit_queue);
@@ -146,13 +149,14 @@ __attribute__((always_inline))static inline int _external_input_node_post_proces
 	int idx=0;
 	int drop_start=0;
 	int nr_dropped=0;
-	int nr_delivered;
+	int nr_delivered=0;
 	uint32_t low_part;
 	uint16_t port_id;
 	uint16_t queue_id;
 	struct E3interface * pe3_iface;
 	switch(HIGH_UINT64(fwd_id))
 	{
+		
 		case EXTERNAL_INPUT_PROCESS_FWD_XMIT:
 			low_part=LOW_UINT64(fwd_id);
 			port_id=HIGH_UINT32(low_part);
@@ -162,16 +166,28 @@ __attribute__((always_inline))static inline int _external_input_node_post_proces
 				nr_dropped=nr_mbufs;
 				break;
 			}
+			
+			#if 0
 			nr_delivered=deliver_mbufs_to_node(pe3_iface->output_node_arrar[queue_id],
+				mbufs,
+				nr_mbufs);
+			#endif
+			
+			nr_delivered=deliver_mbufs_to_e3iface(pe3_iface,
+				queue_id,
 				mbufs,
 				nr_mbufs);
 			drop_start=nr_delivered;
 			nr_dropped=nr_mbufs-nr_delivered;
 			break;
+		
+		
 		default:
 			nr_dropped=nr_mbufs;
 			break;
 	}
+	pnode->nr_tx_packets+=nr_delivered;
+	pnode->nr_drop_packets+=nr_dropped;
 	for(idx=0;idx<nr_dropped;idx++)
 		rte_pktmbuf_free(mbufs[drop_start+idx]);
 	return 0;
@@ -201,6 +217,7 @@ int external_input_node_process_func(void* arg)
 	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,(void**)mbufs,64);
 	if(!nr_mbufs)
 		return 0;
+	pnode->nr_rx_packets+=nr_mbufs;
 	pre_setup_env(nr_mbufs);
 	while((iptr=peek_next_mbuf())>=0){
 		prefetch_next_mbuf(mbufs,iptr);
@@ -233,7 +250,7 @@ int external_input_node_process_func(void* arg)
 	return 0;
 }
 static int external_input_node_indicator=0;
-int register_external_input_node(int socket_id)
+int register_external_input_node(int socket_id,int register_into_class_entry)
 {
 	struct node * pnode=NULL;
 	pnode=rte_zmalloc_socket(NULL,sizeof(struct node),64,socket_id);
@@ -262,9 +279,16 @@ int register_external_input_node(int socket_id)
 	}
 	E3_ASSERT(find_node_by_name((char*)pnode->name)==pnode);
 
-	if(add_node_into_nodeclass(EXTERNAL_INPUT_CLASS_NAME,(char*)pnode->name)){
-		E3_ERROR("adding node:%s to class:%s fails\n",(char*)pnode->name,EXTERNAL_INPUT_CLASS_NAME);
-		goto error_node_unregister;
+	if(register_into_class_entry){
+		if(add_node_into_nodeclass(EXTERNAL_INPUT_CLASS_NAME,(char*)pnode->name)){
+			E3_ERROR("adding node:%s to class:%s fails\n",(char*)pnode->name,EXTERNAL_INPUT_CLASS_NAME);
+			goto error_node_unregister;
+		}
+	}else{
+		if(add_node_into_nodeclass_pool(EXTERNAL_INPUT_CLASS_NAME,(char*)pnode->name)){
+			E3_ERROR("adding node:%s to class nodes-pool:%s fails\n",(char*)pnode->name,EXTERNAL_INPUT_CLASS_NAME);
+			goto error_node_unregister;
+		}
 	}
 	if(attach_node_to_lcore(pnode)){
 		E3_ERROR("attaching node:%s to lcore fails\n",(char*)pnode->name);
@@ -293,8 +317,14 @@ void external_input_node_early_init(void)
 	int socket_id;
 	foreach_numa_socket(socket_id){
 		for(idx=0;idx<EXTERNAL_INPUT_NODES_PER_SOCKET;idx++)
-			register_external_input_node(socket_id);
-	}	
+			register_external_input_node(socket_id,1);
+	}
+	foreach_numa_socket(socket_id){
+		for(idx=0;idx<EXTERNAL_INPUT_NDOES_IN_POOLS_PER_SOCKET;idx++)
+			register_external_input_node(socket_id,0);
+	}
+	
+	
 }
 E3_init(external_input_node_early_init,TASK_PRIORITY_ULTRA_LOW);
 

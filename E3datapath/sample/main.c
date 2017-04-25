@@ -75,6 +75,7 @@ main(int argc, char **argv)
 
 	
 	init_registered_tasks();
+
 	//init_lcore_extension();
 	//preserve_lcore_for_io(2);
 	//preserve_lcore_for_worker(1);
@@ -86,19 +87,22 @@ main(int argc, char **argv)
 	RTE_LCORE_FOREACH_SLAVE(lcore_id) {
 		rte_eal_remote_launch(lcore_default_entry, NULL, lcore_id);
 	}
-	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
-	add_e3_interface("0000:01:00.1",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
-	add_e3_interface("0000:03:00.1",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
-
-
 	
+	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
+	add_e3_interface("0000:82:00.0",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
+	add_e3_interface("0000:03:00.1",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
+	add_e3_interface("0000:01:00.1",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
+	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
+	//
+	
+
+
 	struct l3_interface * l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
 	l3iface->lower_if_index=2;
 	l3iface->vlan_vid=507;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,1);
 	register_l3_interface(l3iface);
-
 	
 	l3iface=allocate_l3_interface();
 	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
@@ -128,7 +132,8 @@ main(int argc, char **argv)
 	rs->tunnel_id=VNI_SWAP_ORDER(3685);
 	rs->rs_ipv4=MAKE_IP32(4,4,4,4);
 	rs->lb_iface=2;
-	copy_ether_address(rs->rs_mac,"\x82\xe1\x5b\x6b\x6d\x2c");
+	//copy_ether_address(rs->rs_mac,"\x82\xe1\x5b\x6b\x6d\x2c");
+	copy_ether_address(rs->rs_mac,"\x9a\xb3\x0e\x2f\xc3\x2d");
 	printf("register rc:%d\n",register_real_server(rs));
 	printf("register rc lb-local-index:%d\n",rs->local_index);
 
@@ -136,7 +141,7 @@ main(int argc, char **argv)
 	rs->tunnel_id=VNI_SWAP_ORDER(3686);
 	rs->rs_ipv4=MAKE_IP32(5,5,5,5);
 	rs->lb_iface=3;
-	copy_ether_address(rs->rs_mac,"\x96\x3d\xb1\xcf\x3a\x96");
+	copy_ether_address(rs->rs_mac,"\xc2\x47\x34\xce\xf0\xfb");
 	printf("register rc:%d\n",register_real_server(rs));
 	printf("register rc lb-local-index:%d\n",rs->local_index);
 
@@ -148,23 +153,82 @@ main(int argc, char **argv)
 	vip->lb_instance_index=0;
 	register_virtual_ip(vip);
 	copy_ether_address(vip->next_mac,"\x3c\xfd\xfe\x9e\x97\x26");
+	//copy_ether_address(vip->next_mac,"\x24\x6e\x96\x0d\xb1\x38");
 	
 	struct lb_instance * lb=allocate_lb_instance("lb-test");
 	register_lb_instance(lb);
 	lb->vip_index=0;
 	
 	add_real_server_num_into_lb_member_pool(lb,0);
-	//add_real_server_num_into_lb_member_pool(lb,1);
+	add_real_server_num_into_lb_member_pool(lb,1);
+
+
+
+
+	/*another LB instance*/
+	//add_e3_interface("0000:01:00.0",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
+	
+	
+	
 	dump_lb_members(lb);
 	dump_l3_interfaces(stdout);
+	dump_nodes(fp_log);
+	dump_node_class(fp_log);
+
+	start_e3_interface(0);
+	start_e3_interface(1);
+	start_e3_interface(2);
+	start_e3_interface(3);
+	start_e3_interface(4);
+	#if 0
+
+
+	
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=3;
+	l3iface->vlan_vid=506;
+	l3iface->if_ip_as_u32=MAKE_IP32(130,140,149,1);
+	register_l3_interface(l3iface);
+
+	
+	vip=allocate_virtual_ip();
+	vip->ip_as_u32=MAKE_IP32(130,140,149,1);
+	vip->virt_if_index=4;
+	vip->lb_instance_index=1;
+	register_virtual_ip(vip);
+	copy_ether_address(vip->next_mac,"\x3c\xfd\xfe\x9e\x97\x29");
+
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_VIRTUAL;
+	l3iface->lower_if_index=0;
+	l3iface->if_ip_as_u32=MAKE_IP32(3,3,3,33);
+	copy_ether_address(l3iface->if_mac,"\x32\x97\x5b\x6b\x6d\x32");
+	register_l3_interface(l3iface);
+	
+	
+	rs=allocate_real_server();
+	rs->tunnel_id=VNI_SWAP_ORDER(3684);
+	rs->rs_ipv4=MAKE_IP32(3,3,3,3);
+	rs->lb_iface=5;
+	copy_ether_address(rs->rs_mac,"\xc2\x47\x34\xcf\x32\x4b");
+	printf("register rc:%d\n",register_real_server(rs));
+	printf("register rc lb-local-index:%d\n",rs->local_index);
+	
+
+	lb=allocate_lb_instance("lb-test1");
+	register_lb_instance(lb);
+	lb->vip_index=1;
+	add_real_server_num_into_lb_member_pool(lb,2);
+
+
+
 
 	
 	
+
 	
-	#if 0
-	struct lb_instance * lb=allocate_lb_instance("lb-test");
-	lb->vip_index=0;
-	register_lb_instance(lb);
+	
 	int idx=0;
 	for(idx=0;idx<16;idx++)
 		add_real_server_num_into_lb_member_pool(lb,idx);
@@ -500,14 +564,65 @@ main(int argc, char **argv)
 	pnode=find_node_by_name("device-input-node-1");
 	printf("next_node:%d\n",next_forwarding_node(pnode,DEVICE_NEXT_ENTRY_TO_L2_INPUT));
 	#endif
-	getchar();
-	
-	dump_nodes(stdout);
-	dump_node_class(stdout);
-	
+	while(1){
+		getchar();
+		#if 0
+		/*inbound nodes stats*/
+		dump_e3iface_node_stats(1);
+		dump_e3iface_node_stats(2);
+		#endif
+		printf("mempool0:%d\n",rte_mempool_free_count(get_mempool_by_socket_id(0)));
+		printf("mempool1:%d\n",rte_mempool_free_count(get_mempool_by_socket_id(1)));
+		dump_e3iface_node_stats(1);
+		dump_e3iface_node_stats(3);
+		//dump_e3iface_node_stats(2);
+		//dump_e3iface_node_stats(2);
+		dump_node_stats(find_node_by_name("ext-input-node-0")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-1")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-2")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-3")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-4")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-5")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-6")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-7")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-8")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-9")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-10")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-11")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-12")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-13")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-14")->node_index);
+		dump_node_stats(find_node_by_name("ext-input-node-15")->node_index);
+		/*
+		dump_node_stats(find_node_by_name("l4-tunnel-node-0")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-1")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-2")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-3")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-4")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-5")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-6")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-7")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-8")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-9")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-10")->node_index);
+		dump_node_stats(find_node_by_name("l4-tunnel-node-11")->node_index);
+
+		dump_node_stats(find_node_by_name("int-input-node-0")->node_index);
+		dump_node_stats(find_node_by_name("int-input-node-1")->node_index);
+		dump_node_stats(find_node_by_name("int-input-node-2")->node_index);
+		dump_node_stats(find_node_by_name("int-input-node-3")->node_index);
+		dump_node_stats(find_node_by_name("int-input-node-4")->node_index);
+		dump_node_stats(find_node_by_name("int-input-node-5")->node_index);
+		dump_node_stats(find_node_by_name("int-input-node-6")->node_index);
+		dump_node_stats(find_node_by_name("int-input-node-7")->node_index);
+		
+		dump_e3iface_node_stats(1);
+		*/
+	}
 	lcore_default_entry(NULL);/*master core enters loops*/
 	while(1)
 		sleep(1);
 	rte_eal_mp_wait_lcore();
 	return 0;
 }
+/**/

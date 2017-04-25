@@ -101,8 +101,10 @@ void dump_nodes(FILE*fp)
 {
 	struct node * pnode;
 	FOREACH_NODE_START(pnode){
-		fprintf(fp,"node :%d %s\n",pnode->node_index,
-			pnode->name);
+		if(fp_log!=fp)
+			fprintf(fp,"node :%d %s\n",pnode->node_index,pnode->name);
+		else
+			E3_LOG("node :%d %s\n",pnode->node_index,pnode->name);
 	}
 	FOREACH_NODE_END();
 }
@@ -150,5 +152,17 @@ void clear_node_ring_buffer(struct node * pnode)
 	} 
 	E3_LOG("%d mbufs in node:%s freed\n",cnt_mbufs,(pnode)->name); 
 }
-
+void dump_node_stats(int node_index)
+{
+	struct node * pnode=find_node_by_index(node_index);
+	if(!pnode){
+		printf("node at index:%d does not exist\n",node_index);
+		return ;
+	}
+	printf("node:%s(%d) is on %d\n",(char*)pnode->name,node_index,(int)pnode->lcore_id);
+	printf("\trx:%"PRIu64" tx:%"PRIu64" drop:%"PRIu64"\n",
+		pnode->nr_rx_packets,
+		pnode->nr_tx_packets,
+		pnode->nr_drop_packets);
+}
 

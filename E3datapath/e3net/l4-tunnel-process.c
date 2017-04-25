@@ -37,7 +37,7 @@ __attribute__((always_inline))
 	int idx=0;
 	int drop_start=0;
 	int nr_dropped=0;
-	int nr_delivered;
+	int nr_delivered=0;
 	
 	switch(HIGH_UINT64(fwd_id))
 	{
@@ -70,6 +70,8 @@ __attribute__((always_inline))
 			nr_dropped=nr_mbufs;
 			break;
 	}
+	pnode->nr_tx_packets+=nr_delivered;
+	pnode->nr_drop_packets+=nr_dropped;
 	for(idx=0;idx<nr_dropped;idx++)
 		rte_pktmbuf_free(mbufs[drop_start+idx]);
 	return 0;
@@ -162,6 +164,7 @@ int l4_tunnel_process_func(void*arg)
 	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,(void**)mbufs,64);
 	if(!nr_mbufs)
 		return 0;
+	pnode->nr_rx_packets+=nr_mbufs;
 	/*here we are gonna to decode the packet payload to decide which node to go*/
 	pre_setup_env(nr_mbufs);
 	while((iptr=peek_next_mbuf())>=0){
@@ -188,7 +191,7 @@ int l4_tunnel_process_func(void*arg)
 	return 0;
 }
 static int l4_tunnel_node_indicator=0;
-int register_l4_tunnel_node(int socket_id)
+int register_l4_tunnel_node(int socket_id,int register_into_class_entry)
 {
 	struct node * pnode=NULL;
 	pnode=rte_zmalloc_socket(NULL,sizeof(struct node),64,socket_id);
@@ -216,10 +219,16 @@ int register_l4_tunnel_node(int socket_id)
 		goto error_node_dealloc;
 	}
 	E3_ASSERT(find_node_by_name((char*)pnode->name)==pnode);
-
-	if(add_node_into_nodeclass(L4_TUN_NODE_CLASS_NAME,(char*)pnode->name)){
-		E3_ERROR("adding node:%s to class:%s fails\n",(char*)pnode->name,L4_TUN_NODE_CLASS_NAME);
-		goto error_node_unregister;
+	if(register_into_class_entry){
+		if(add_node_into_nodeclass(L4_TUN_NODE_CLASS_NAME,(char*)pnode->name)){
+			E3_ERROR("adding node:%s to class:%s fails\n",(char*)pnode->name,L4_TUN_NODE_CLASS_NAME);
+			goto error_node_unregister;
+		}
+	}else{
+		if(add_node_into_nodeclass_pool(L4_TUN_NODE_CLASS_NAME,(char*)pnode->name)){
+			E3_ERROR("adding node:%s to class nodes pool:%s fails\n",(char*)pnode->name,L4_TUN_NODE_CLASS_NAME);
+			goto error_node_unregister;
+		}
 	}
 	if(attach_node_to_lcore(pnode)){
 		E3_ERROR("attaching node:%s to lcore fails\n",(char*)pnode->name);
@@ -296,7 +305,12 @@ void l4_tunnel_process_node_early_init(void)
 	int socket_id;
 	foreach_numa_socket(socket_id){
 		for(idx=0;idx<L4_TUN_NODES_PER_SOCKET;idx++)
-			register_l4_tunnel_node(socket_id);
+			register_l4_tunnel_node(socket_id,1);
+	}
+
+	foreach_numa_socket(socket_id){
+		for(idx=0;idx<L4_TUN_NODES_PER_SOCKET_PUBLIC_POOL;idx++)
+			register_l4_tunnel_node(socket_id,0);
 	}
 }
 E3_init(l4_tunnel_process_node_early_init,TASK_PRIORITY_ULTRA_LOW+0x100);

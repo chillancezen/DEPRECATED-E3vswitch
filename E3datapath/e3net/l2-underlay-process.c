@@ -30,6 +30,7 @@ int l2_under_process_poll_func(void * arg)
 		E3_MIN(pnode->burst_size,64));
 	if(!nr_mbufs)
 		return 0;
+	
 	/*construct arp respone packet,*/
 	for(idx=0;idx<nr_mbufs;idx++){
 		target_l3iface=NULL;
@@ -56,6 +57,8 @@ int l2_under_process_poll_func(void * arg)
 			}
 		}
 		foreach_phy_l3_interface_safe_end();
+		if(arp_hdr->arp_data.arp_tip==MAKE_IP32(130,140,150,1))
+			printf("l2-underlay:%p %d\n",target_l3iface,port);
 		if(!target_l3iface)
 			goto drop_this_packet;
 		/*check vlan whether matches*/

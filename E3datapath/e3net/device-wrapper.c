@@ -35,7 +35,7 @@ int type_lb_internal_capability_check(int port_id)
 	_t(DEV_TX_OFFLOAD_UDP_CKSUM);
 	_t(DEV_TX_OFFLOAD_TCP_CKSUM);
 	_t(DEV_TX_OFFLOAD_VLAN_INSERT);
-	_t(DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM);
+	//_t(DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM);
 	#undef _r
 	#undef _t 
 	return 0;
@@ -89,7 +89,7 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 	int idx=0;
 	int drop_start=0;
 	int nr_dropped=0;
-	int nr_delivered;
+	int nr_delivered=0;
 	switch(HIGH_UINT64(fwd_id))
 	{
 		case LB_DEVICE_INPUT_FWD_L2_ARP_PROCESS:
@@ -116,6 +116,7 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 			drop_start=nr_delivered;
 			nr_dropped=nr_mbufs-nr_delivered;
 			break;
+			
 		case LB_DEVICE_INPUT_FWD_EXTERNAL_INPUT_PROCESS:
 			nr_delivered=deliver_mbufs_by_next_entry(pnode,
 				L2_NEXT_EDGE_EXTERNAL_INPUT,
@@ -124,12 +125,16 @@ __attribute__((always_inline))static inline int _lb_device_input_node_post_proce
 			drop_start=nr_delivered;
 			nr_dropped=nr_mbufs-nr_delivered;
 			break;
+
 		default:
 			nr_dropped=nr_mbufs;
 			break;
 	}
+	pnode->nr_tx_packets+=nr_delivered;
+	pnode->nr_drop_packets+=nr_dropped;
 	for(idx=0;idx<nr_dropped;idx++)
 		rte_pktmbuf_free(mbufs[drop_start+idx]);
+	
 	return 0;
 }
 
@@ -211,15 +216,20 @@ int lb_device_input_node_process_func(void *arg)
 	
 	port_id=(int)HIGH_UINT64((uint64_t)pnode->node_priv);
 	queue_id=(int)LOW_UINT64((uint64_t)pnode->node_priv);
+	pif=find_e3iface_by_index(port_id);
+	if(PREDICT_FALSE((!pif->if_avail_ptr)||(pif->port_status==PORT_STATUS_DOWN)))
+		return 0;
+	
 	nr_mbufs=rte_eth_rx_burst(port_id,queue_id,mbufs,E3_MIN(64,pnode->burst_size));
 	if(!nr_mbufs)
 		return 0;
+	pnode->nr_rx_packets+=nr_mbufs;
 	pre_setup_env(nr_mbufs);
 	/*check ptypes and deliver them directly,do not touch any packet payload*/
 	while((iptr=peek_next_mbuf())>=0){
 		fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_DROP,0);
 		/*hardware dependent classification*/
-		pif=find_e3iface_by_index(port_id);
+		
 		if(PREDICT_TRUE(is_e3interface_available(pif))){
 			/*TODO:cache recent packets with their packet-type,hash to identify subsequent packets*/
 			switch(pif->hardware_nic_type)
@@ -246,8 +256,18 @@ int lb_device_input_node_process_func(void *arg)
 					}
 					break;
 				case NIC_INTEL_82599:
-					prefetch_next_mbuf(mbufs,iptr);
-					fwd_id=nic_intel_82599_classification(pnode,mbufs[iptr],pif);
+					if((last_classification_hash==mbufs[iptr]->hash.fdir.lo)&&
+						(last_classification_packet_type==mbufs[iptr]->packet_type)&&
+						(last_classification_port==mbufs[iptr]->port))
+						fwd_id=last_classification_fwd_id;
+					else{
+						fwd_id=nic_intel_82599_classification(pnode,mbufs[iptr],pif);
+						last_classification_hash=mbufs[iptr]->hash.fdir.lo;
+						last_classification_packet_type=mbufs[iptr]->packet_type;
+						last_classification_fwd_id=fwd_id;
+						last_classification_port=mbufs[iptr]->port;
+						prefetch_next_mbuf(mbufs,iptr);
+					}
 					break;
 				default:
 					break;
@@ -276,14 +296,18 @@ int lb_vlink_device_input_node_process_func(void *arg)
 int default_device_output_node_process_func(void* arg)
 {
 	struct node * pnode=(struct node*)arg;
-	
+	struct E3interface * pif;
 	struct rte_mbuf * mbufs[64];
 	int nr_mbufs;
-	int nr_delivered;
+	int nr_delivered=0;
 	int idx=0;
 	
 	int port_id=HIGH_UINT64((uint64_t)pnode->node_priv);
 	int queue_id=LOW_UINT64((uint64_t)pnode->node_priv);
+	pif=find_e3iface_by_index(port_id);
+	if(PREDICT_FALSE((!pif->if_avail_ptr)||(pif->port_status==PORT_STATUS_DOWN)))
+		return 0;
+	
 	nr_mbufs=rte_ring_sc_dequeue_burst(pnode->node_ring,
 		(void**)mbufs,
 		E3_MIN(pnode->burst_size,64));
@@ -292,6 +316,9 @@ int default_device_output_node_process_func(void* arg)
 	nr_delivered=rte_eth_tx_burst(port_id,queue_id,mbufs,nr_mbufs);
 	for(idx=nr_delivered;idx<nr_mbufs;idx++)
 		rte_pktmbuf_free(mbufs[idx]);
+	pnode->nr_rx_packets+=nr_mbufs;
+	pnode->nr_tx_packets+=nr_delivered;
+	pnode->nr_drop_packets+=nr_mbufs-nr_delivered;
 	return 0;
 	
 }
@@ -315,7 +342,7 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 			break;
 		case NIC_INTEL_82599:
 			nic_speed=NIC_10GE;
-			ops.hash_function=ETH_RSS_PROTO_MASK;
+			ops.hash_function=ETH_RSS_IP|ETH_RSS_TCP|ETH_RSS_UDP;
 			break;
 		default:
 			E3_ERROR("unsupported NIC types\n");
@@ -398,4 +425,32 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 	}
 	
 	return rc;
+}
+
+void dump_e3iface_node_stats(int port_id)
+{
+	struct node * pnode;
+	int idx=0;
+	struct E3interface * pe3iface=find_e3iface_by_index(port_id);
+	if(!pe3iface){
+		printf("port %d does not exist\n",port_id);
+		return;
+	}
+	printf("there are %d queues in E3interface:%d\n",pe3iface->nr_queues,port_id);
+	for(idx=0;idx<pe3iface->nr_queues;idx++){
+		printf("queue %d:\n",idx);
+		E3_ASSERT(pnode=find_node_by_index(pe3iface->input_node_arrar[idx]));
+		printf("\tinput(%d) rx:%"PRIu64" tx:%"PRIu64" drop:%"PRIu64"\n",
+			pnode->node_index,
+			pnode->nr_rx_packets,
+			pnode->nr_tx_packets,
+			pnode->nr_drop_packets);
+		E3_ASSERT(pnode=find_node_by_index(pe3iface->output_node_arrar[idx]));
+		printf("\toutput(%d) rx:%"PRIu64" tx:%"PRIu64" drop:%"PRIu64"\n",
+			pnode->node_index,
+			pnode->nr_rx_packets,
+			pnode->nr_tx_packets,
+			pnode->nr_drop_packets);
+	}
+	
 }

@@ -12,8 +12,9 @@ int preserve_lcore_for_io(int lcore_id)
 {
 	if(!validate_lcore_id(lcore_id))
 		return -1;
-	lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
-	E3_LOG("lcore %d is preserved exclusively for IO\n",lcore_id);
+	lcore_records[lcore_id].attached_io_nodes=0;
+	//lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+	E3_LOG("lcore %d is IO capable\n",lcore_id);
 	return 0;
 }
 
@@ -21,8 +22,9 @@ int preserve_lcore_for_worker(int lcore_id)
 {
 	if(!validate_lcore_id(lcore_id))
 		return -1;
-	lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
-	E3_LOG("lcore %d is preserved exclusively for worker\n",lcore_id);
+	//lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+	lcore_records[lcore_id].attached_nodes=0;
+	E3_LOG("lcore %d is worker capable\n",lcore_id);
 	return 0;
 }
 
@@ -55,13 +57,16 @@ int _init_per_socket_mempool(void)
 /*extension of DPDK eal init,should be called immediately after rte_eal_init()*/
 void init_lcore_extension(void)
 {
+	int max_available_lcores=0;
+	int nr_io_lcores;
+
 	unsigned lcore_id;
 	int max_socket=0;
 	RTE_LCORE_FOREACH(lcore_id){
 		lcore_records[lcore_id].is_enabled=1;
 		lcore_records[lcore_id].socket_id=rte_lcore_to_socket_id(lcore_id);
-		lcore_records[lcore_id].attached_nodes=0;
-		lcore_records[lcore_id].attached_io_nodes=0;
+	//	lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+	//	lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
 		if(lcore_records[lcore_id].socket_id>max_socket)
 			max_socket=lcore_records[lcore_id].socket_id;
 	}
@@ -69,6 +74,28 @@ void init_lcore_extension(void)
 	nr_sockets=max_socket+1;
 	E3_ASSERT(nr_sockets<=MAX_SOCKET_SUPPORTED);
 	_init_per_socket_mempool();
+	#if 0
+	RTE_LCORE_FOREACH(lcore_id){
+		#if defined(PRESERVE_MASTER_LCORE)
+		if(lcore_id==rte_get_master_lcore())
+			continue;
+		#endif
+		max_available_lcores++;
+	}
+	nr_io_lcores=max_available_lcores/2;
+	
+
+	RTE_LCORE_FOREACH(lcore_id){
+		#if defined(PRESERVE_MASTER_LCORE)
+		if(lcore_id==rte_get_master_lcore())
+			continue;
+		#endif
+		if(nr_io_lcores){
+			preserve_lcore_for_io(lcore_id);
+			nr_io_lcores--;
+		}else preserve_lcore_for_worker(lcore_id);
+	}
+	#endif
 	
 }
 E3_init(init_lcore_extension,TASK_PRIORITY_HIGH);
