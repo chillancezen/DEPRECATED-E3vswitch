@@ -17,8 +17,8 @@
 #include <rte_tcp.h>
 #include <vxlan-encap.h>
 #define EXTERNAL_INPUT_CLASS_NAME "external-input"
-#define EXTERNAL_INPUT_NODES_PER_SOCKET 4
-#define EXTERNAL_INPUT_NDOES_IN_POOLS_PER_SOCKET 8
+#define EXTERNAL_INPUT_NODES_PER_SOCKET 2
+#define EXTERNAL_INPUT_NDOES_IN_POOLS_PER_SOCKET 10
 
 #define EXTERNAL_INPUT_PROCESS_FWD_DROP 0x0
 #define EXTERNAL_INPUT_PROCESS_FWD_XMIT 0x1
@@ -131,7 +131,7 @@ __attribute__((always_inline))
 		pphy_l3iface,
 		pe3_iface,
 		0);
-	
+
 	nr_xmit_queue=mbuf->hash.fdir.lo%pe3_iface->nr_queues;
 
 	lo_part=MAKE_UINT32(pe3_iface->port_id,nr_xmit_queue);
@@ -221,6 +221,7 @@ int external_input_node_process_func(void* arg)
 	pre_setup_env(nr_mbufs);
 	while((iptr=peek_next_mbuf())>=0){
 		prefetch_next_mbuf(mbufs,iptr);
+		
 		fwd_id=translate_inbound_packet(mbufs[iptr],
 			&last_cached_port,
 			&last_cached_packet_type,
@@ -228,6 +229,7 @@ int external_input_node_process_func(void* arg)
 			&plast_cached_pvip,
 			&plast_cached_plb,
 			&plast_cached_prs);
+		
 		process_rc=proceed_mbuf(iptr,fwd_id);
 		if(process_rc==MBUF_PROCESS_RESTART){
 			fetch_pending_index(start_index,end_index);

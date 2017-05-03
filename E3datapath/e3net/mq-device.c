@@ -250,6 +250,7 @@ int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_
 	}
 	
 	/*misc options setup*/
+	pif->last_updated_ts=rte_rdtsc();
 	pif->port_status=PORT_STATUS_DOWN;
 	rcu_assign_pointer(pif->if_avail_ptr,!(NULL));
 	for(idx=0;idx<pif->nr_queues;idx++){

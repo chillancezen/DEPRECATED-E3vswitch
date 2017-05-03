@@ -73,7 +73,7 @@ main(int argc, char **argv)
 	if (ret < 0)
 		rte_panic("Cannot init EAL\n");
 
-	
+	printf("tsc HZ:%"PRIu64"\n",rte_get_tsc_hz());
 	init_registered_tasks();
 
 	//init_lcore_extension();
@@ -90,8 +90,9 @@ main(int argc, char **argv)
 	
 	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
 	add_e3_interface("0000:82:00.0",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
-	add_e3_interface("0000:03:00.1",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
+	add_e3_interface("0000:03:00.0",NIC_INTEL_XL710,PORT_TYPE_LB_INTERNAL,NULL);
 	add_e3_interface("0000:01:00.1",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
+	//add_e3_interface("0000:01:00.0",NIC_INTEL_82599,PORT_TYPE_LB_EXTERNAL,NULL);
 	add_e3_interface("eth_tap",NIC_VIRTUAL_DEV,PORT_TYPE_VLINK,NULL);
 	//
 	
@@ -152,9 +153,9 @@ main(int argc, char **argv)
 	vip->virt_if_index=1;
 	vip->lb_instance_index=0;
 	register_virtual_ip(vip);
-	copy_ether_address(vip->next_mac,"\x3c\xfd\xfe\x9e\x97\x26");
+	//copy_ether_address(vip->next_mac,"\x3c\xfd\xfe\x9e\x97\x26");
 	//copy_ether_address(vip->next_mac,"\x24\x6e\x96\x0d\xb1\x38");
-	
+	copy_ether_address(vip->next_mac,"\x90\xe2\xba\x21\x7d\x71");
 	struct lb_instance * lb=allocate_lb_instance("lb-test");
 	register_lb_instance(lb);
 	lb->vip_index=0;
@@ -571,12 +572,30 @@ main(int argc, char **argv)
 		dump_e3iface_node_stats(1);
 		dump_e3iface_node_stats(2);
 		#endif
+		
+		dump_e3iface_node_stats(2);
+	//	dump_e3iface_node_stats(3);
+		//dump_e3iface_node_stats(4);
+		/*
+
+		{
+			int idx=0;
+			char buffer[64];
+			while(1){
+				memset(buffer,0x0,sizeof(buffer));
+				sprintf(buffer,"ext-input-node-%d",idx++);
+				struct node * pnode=find_node_by_name(buffer);
+				if(!pnode)
+					break;
+				dump_node_stats(pnode->node_index);
+			}
+		}
+		//dump_e3iface_node_stats(2);
+		//dump_e3iface_node_stats(2);
+		
+		
 		printf("mempool0:%d\n",rte_mempool_free_count(get_mempool_by_socket_id(0)));
 		printf("mempool1:%d\n",rte_mempool_free_count(get_mempool_by_socket_id(1)));
-		dump_e3iface_node_stats(1);
-		dump_e3iface_node_stats(3);
-		//dump_e3iface_node_stats(2);
-		//dump_e3iface_node_stats(2);
 		dump_node_stats(find_node_by_name("ext-input-node-0")->node_index);
 		dump_node_stats(find_node_by_name("ext-input-node-1")->node_index);
 		dump_node_stats(find_node_by_name("ext-input-node-2")->node_index);
@@ -593,7 +612,6 @@ main(int argc, char **argv)
 		dump_node_stats(find_node_by_name("ext-input-node-13")->node_index);
 		dump_node_stats(find_node_by_name("ext-input-node-14")->node_index);
 		dump_node_stats(find_node_by_name("ext-input-node-15")->node_index);
-		/*
 		dump_node_stats(find_node_by_name("l4-tunnel-node-0")->node_index);
 		dump_node_stats(find_node_by_name("l4-tunnel-node-1")->node_index);
 		dump_node_stats(find_node_by_name("l4-tunnel-node-2")->node_index);

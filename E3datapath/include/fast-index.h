@@ -72,7 +72,8 @@ __attribute__((always_inline)) static inline
 	for(;pentry;pentry=rcu_dereference(pentry->next_entry)){
 		#if defined(__AVX2__)
 		for(idx=0,index_base=0;ret&&(idx<3);idx++,index_base+=16){
-			ymm_tags=_mm256_load_si256((__m256i*)(idx*32+(char*)pentry->tags));
+			//ymm_tags=_mm256_load_si256((__m256i*)(idx*32+(char*)pentry->tags));
+			ymm_tags=_mm256_stream_load_si256((__m256i*)(idx*32+(char*)pentry->tags));
 			ymm_tags_cmp_rc=_mm256_cmpeq_epi16(ymm_tags,ymm_target);
 			ymm_tags_cmp_rc=_mm256_shuffle_epi8(ymm_tags_cmp_rc,ymm_shuffle_mask);
 			ymm_tags_cmp_rc=_mm256_permute4x64_epi64(ymm_tags_cmp_rc,PERMUTATION_MASK);
@@ -92,7 +93,8 @@ __attribute__((always_inline)) static inline
 		}
 		#elif defined(__SSE4_1__)
 		for(idx=0,index_base=0;ret&&(idx<6);idx++,index_base+=8){
-			xmm_tags=_mm_load_si128((__m128i *)(idx*16+(char*)pentry->tags));
+			//xmm_tags=_mm_load_si128((__m128i *)(idx*16+(char*)pentry->tags));
+			xmm_tags=_mm_stream_load_si128((__m128i *)(idx*16+(char*)pentry->tags));
 			xmm_tags_cmp_rc=_mm_cmpeq_epi16(xmm_tags,xmm_target);
 			xmm_tags_cmp_rc=_mm_shuffle_epi8(xmm_tags_cmp_rc,xmm_shuffle_mask);
 			cmp_rc=_mm_movemask_epi8(xmm_tags_cmp_rc);

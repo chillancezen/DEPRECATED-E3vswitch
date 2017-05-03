@@ -6,7 +6,7 @@
 #include <e3_log.h>
 #include <urcu-qsbr.h>
 #include <util.h>
-
+#include <rte_cycles.h>
 #define MAX_INTERFACE_NAME_LEN 64
 #define DEFAULT_RX_DESCRIPTORS 1024
 #define DEFAULT_TX_DESCRIPTORS 1024
@@ -45,6 +45,8 @@ struct E3interface
 	struct ether_addr mac_addr;
 	struct rte_eth_dev_info dev_info;
 	struct rte_eth_link link_info;
+	struct rte_eth_stats stats;
+	uint64_t last_updated_ts;
 };
 
 struct next_edge_item{

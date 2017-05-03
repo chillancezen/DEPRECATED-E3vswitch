@@ -10,7 +10,7 @@
 #define MAX_NODECLASS_NAME_LEN 64
 
 #define MAX_NODE_IN_CLASS 16
-#define MAX_NODE_IN_CLASS_NODES_POOL 16 
+#define MAX_NODE_IN_CLASS_NODES_POOL 32 
 
 
 typedef void (*node_class_rcu_callback)(struct rcu_head * rcu);

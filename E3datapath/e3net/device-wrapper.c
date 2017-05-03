@@ -235,12 +235,12 @@ int lb_device_input_node_process_func(void *arg)
 			switch(pif->hardware_nic_type)
 			{
 					#if 0
-					printf("type:%x of:%p vlan:%d %4x-%4x l2:%d\n",mbuf->packet_type,
-						(void*)mbuf->ol_flags,
-						mbuf->vlan_tci,
-						mbuf->hash.fdir.hash,
-						mbuf->hash.fdir.id,
-						mbuf->l2_len);
+					printf("type:%x of:%p vlan:%d %4x-%4x l2:%d\n",mbufs[iptr]->packet_type,
+						(void*)mbufs[iptr]->ol_flags,
+						mbufs[iptr]->vlan_tci,
+						mbufs[iptr]->hash.fdir.hash,
+						mbufs[iptr]->hash.fdir.id,
+						mbufs[iptr]->l2_len);
 					#endif
 				case NIC_INTEL_XL710:
 					if((last_classification_hash==mbufs[iptr]->hash.fdir.lo)&&
@@ -429,6 +429,8 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 
 void dump_e3iface_node_stats(int port_id)
 {
+	uint64_t tsc_now;
+	uint64_t tsc_diff;
 	struct node * pnode;
 	int idx=0;
 	struct E3interface * pe3iface=find_e3iface_by_index(port_id);
@@ -436,7 +438,14 @@ void dump_e3iface_node_stats(int port_id)
 		printf("port %d does not exist\n",port_id);
 		return;
 	}
+	tsc_now=rte_rdtsc();
+	tsc_diff=tsc_now-pe3iface->last_updated_ts;
+	rte_eth_stats_get(pe3iface->port_id,&pe3iface->stats);
+	rte_eth_stats_reset(pe3iface->port_id);
+	pe3iface->last_updated_ts=rte_rdtsc();
+	
 	printf("there are %d queues in E3interface:%d\n",pe3iface->nr_queues,port_id);
+	printf("rx-pps:%"PRIu64"\n",pe3iface->stats.ipackets*rte_get_tsc_hz()/tsc_diff);
 	for(idx=0;idx<pe3iface->nr_queues;idx++){
 		printf("queue %d:\n",idx);
 		E3_ASSERT(pnode=find_node_by_index(pe3iface->input_node_arrar[idx]));

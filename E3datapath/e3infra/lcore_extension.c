@@ -13,7 +13,7 @@ int preserve_lcore_for_io(int lcore_id)
 	if(!validate_lcore_id(lcore_id))
 		return -1;
 	lcore_records[lcore_id].attached_io_nodes=0;
-	//lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+	lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
 	E3_LOG("lcore %d is IO capable\n",lcore_id);
 	return 0;
 }
@@ -22,7 +22,7 @@ int preserve_lcore_for_worker(int lcore_id)
 {
 	if(!validate_lcore_id(lcore_id))
 		return -1;
-	//lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+	lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
 	lcore_records[lcore_id].attached_nodes=0;
 	E3_LOG("lcore %d is worker capable\n",lcore_id);
 	return 0;
@@ -65,8 +65,8 @@ void init_lcore_extension(void)
 	RTE_LCORE_FOREACH(lcore_id){
 		lcore_records[lcore_id].is_enabled=1;
 		lcore_records[lcore_id].socket_id=rte_lcore_to_socket_id(lcore_id);
-	//	lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
-	//	lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+		lcore_records[lcore_id].attached_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
+		lcore_records[lcore_id].attached_io_nodes=ATTACHED_NODES_PRESERVE_THRESHOLD;
 		if(lcore_records[lcore_id].socket_id>max_socket)
 			max_socket=lcore_records[lcore_id].socket_id;
 	}
@@ -74,7 +74,7 @@ void init_lcore_extension(void)
 	nr_sockets=max_socket+1;
 	E3_ASSERT(nr_sockets<=MAX_SOCKET_SUPPORTED);
 	_init_per_socket_mempool();
-	#if 0
+	#if 1
 	RTE_LCORE_FOREACH(lcore_id){
 		#if defined(PRESERVE_MASTER_LCORE)
 		if(lcore_id==rte_get_master_lcore())
@@ -82,7 +82,7 @@ void init_lcore_extension(void)
 		#endif
 		max_available_lcores++;
 	}
-	nr_io_lcores=max_available_lcores/2;
+	nr_io_lcores=6;//max_available_lcores/2;
 	
 
 	RTE_LCORE_FOREACH(lcore_id){
@@ -316,7 +316,7 @@ int lcore_default_entry(__attribute__((unused)) void *arg)
 		foreach_node_in_lcore(pnode,lcore_id){
 			cnt++;
 			pnode->node_process_func(pnode);
-			rcu_quiescent_state();
+			//rcu_quiescent_state();
 		}
 		
 		if(cnt!=last_cnt){
@@ -326,8 +326,8 @@ int lcore_default_entry(__attribute__((unused)) void *arg)
 			#endif
 		}
 		
-		if(!cnt)
-			rcu_quiescent_state();
+		//if(!cnt)
+		rcu_quiescent_state();
 	}
 	rcu_thread_offline();
 	rcu_unregister_thread();
