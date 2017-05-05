@@ -4,7 +4,7 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include <real-server.h>
-
+#include <l3-interface.h>
 void l4_tunnel_process_class_early_init(void)
 {
 	struct node_class * pclass=rte_zmalloc(NULL,sizeof(struct node_class),64);
@@ -77,23 +77,57 @@ __attribute__((always_inline))
 	return 0;
 }
 __attribute__((always_inline)) 
-	static inline uint64_t decode_tunnel_packet(struct rte_mbuf* mbuf,
+	static inline uint64_t decode_non_local_l3iface_packet(struct rte_mbuf* mbuf,
+	struct ether_hdr * eth_hdr,
+	struct ipv4_hdr  * ip_hdr,
+	uint8_t  * cached_port,
+	uint16_t * cached_vlan,
 	uint32_t * cached_vni,
-	uint8_t * cached_mac,
-	uint64_t *cached_search_result)
+	uint32_t * cached_local_ip,
+	uint16_t * cached_l3iface_idx,
+	uint8_t  * cached_mac,
+	uint64_t * cached_search_result)
 {
-	#define _(c) if(!(c)) goto ret;
+	
 	uint64_t fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_DROP,0);
-	uint32_t rs_num;
-	struct ether_hdr * eth_hdr=rte_pktmbuf_mtod(mbuf,struct ether_hdr*);
-	struct ipv4_hdr * ip_hdr=(struct ipv4_hdr*)(eth_hdr+1);
+	int rs_num;
+	if((*cached_port==mbuf->port)&&
+	   (*cached_vlan==mbuf->vlan_tci)&&
+	  	is_ether_address_equal(cached_mac,eth_hdr->s_addr.addr_bytes)){
+		rs_num=*cached_search_result;
+	}else{
+		rs_num=*cached_search_result=search_real_server(mbuf->vlan_tci,eth_hdr->s_addr.addr_bytes);
+		*cached_port=mbuf->port;
+		*cached_vlan=mbuf->vlan_tci;
+		copy_ether_address(cached_mac,eth_hdr->s_addr.addr_bytes);
+	}
+	mbuf->udata64=rs_num;
+	//fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_LB_PROCESS,0);
+	if(rs_num!=-1)
+		printf("rs_num:%d\n",rs_num);
+	return fwd_id;
+}
+
+__attribute__((always_inline)) 
+	static inline uint64_t decode_local_l3iface_packet(struct rte_mbuf* mbuf,
+	struct ipv4_hdr * ip_hdr,
+	uint8_t  * cached_port,
+	uint16_t * cached_vlan,
+	uint32_t * cached_vni,
+	uint32_t * cached_local_ip,
+	uint16_t * cached_l3iface_idx,
+	uint8_t  * cached_mac,
+	uint64_t * cached_search_result)
+{
+	
+	#define _(c) if(!(c)) goto ret;
 	struct udp_hdr * udp_hdr;
 	struct vxlan_hdr * vxlan_hdr;
-
 	struct ether_hdr * inner_eth_hdr;
 	struct ipv4_hdr * inner_ip_hdr;
+	uint64_t fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_DROP,0);
+	uint32_t rs_num;
 	
-	_(eth_hdr->ether_type==0x0008);
 	_(ip_hdr->next_proto_id==0x11);
 	udp_hdr=(struct udp_hdr*)(((ip_hdr->version_ihl&0xf)<<2)+(uint8_t*)ip_hdr);
 	_(udp_hdr->dst_port==VXLAN_UDP_PORT);
@@ -118,9 +152,7 @@ __attribute__((always_inline))
 	layer header offset*/
 	mbuf->udata64=rs_num;
 	mbuf->outer_l3_len=((ip_hdr->version_ihl&0xf)<<2);
-	
-	
-	
+
 	if(inner_eth_hdr->ether_type==0x0608){
 		fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_INNER_L2_PROCESS,0);
 		goto ret;
@@ -139,7 +171,68 @@ __attribute__((always_inline))
 		fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_LB_PROCESS,0);
 		goto ret;
 	}
+	#undef _
+	ret:
+	return fwd_id;
+}
+
+__attribute__((always_inline)) 
+	static inline uint64_t decode_tunnel_packet(struct rte_mbuf* mbuf,
+	uint8_t  * cached_port,
+	uint16_t * cached_vlan,
+	uint32_t * cached_vni,
+	uint32_t * cached_local_ip,
+	uint16_t * cached_l3iface_idx,
+	uint8_t  * cached_mac,
+	uint64_t * cached_search_result)
+{
+	#define _(c) if(!(c)) goto ret;
+	uint64_t fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_DROP,0);
+	struct ether_hdr * eth_hdr=rte_pktmbuf_mtod(mbuf,struct ether_hdr*);
+	struct ipv4_hdr * ip_hdr=(struct ipv4_hdr*)(eth_hdr+1);
 	
+	struct l3_interface * l3iface,*target_l3iface=NULL;
+	_(eth_hdr->ether_type==0x0008);
+	
+	if((*cached_port==mbuf->port)&&
+	   (*cached_vlan==mbuf->vlan_tci)&&
+	   (*cached_local_ip==ip_hdr->dst_addr)){
+	   target_l3iface=find_l3_interface_at_index(*cached_l3iface_idx);
+	}else{
+		foreach_phy_l3_interface_safe_start(mbuf->port,l3iface){
+			if((l3iface->if_ip_as_u32==ip_hdr->dst_addr)&&
+			   (l3iface->vlan_vid==mbuf->vlan_tci)){
+			   target_l3iface=l3iface;
+			   break;
+			}
+		}
+		foreach_phy_l3_interface_safe_end();
+		*cached_port=mbuf->port;
+		*cached_vlan=mbuf->vlan_tci;
+		*cached_local_ip=ip_hdr->dst_addr;
+		*cached_l3iface_idx=target_l3iface?target_l3iface->local_index:0xffff;
+	}
+	if(target_l3iface)
+		fwd_id=decode_local_l3iface_packet(mbuf,
+			ip_hdr,
+			cached_port,
+			cached_vlan,
+			cached_vni,
+			cached_local_ip,
+			cached_l3iface_idx,
+			cached_mac,
+			cached_search_result);
+	else 
+		fwd_id=decode_non_local_l3iface_packet(mbuf,
+			eth_hdr,
+			ip_hdr,
+			cached_port,
+			cached_vlan,
+			cached_vni,
+			cached_local_ip,
+			cached_l3iface_idx,
+			cached_mac,
+			cached_search_result);
 	#undef _
 	ret:
 	return fwd_id;
@@ -154,10 +247,15 @@ int l4_tunnel_process_func(void*arg)
 	int process_rc;
 	uint64_t last_fwd_id;
 	int start_index,end_index;
-	
+
+	uint8_t   cached_port=0xff;
+	uint16_t cached_vlan=0xffff;
 	uint32_t cached_vni=0;
-	uint8_t cached_mac[6]={0x0,0x0,0x0,0x0,0x0,0x0};
+	uint32_t cached_ipv4_addr=0xffffffff;
+	uint8_t  cached_mac[6]={0x0,0x0,0x0,0x0,0x0,0x0};
 	uint64_t cached_search_result=-1;
+	uint16_t cached_l3iface_idx=0xffff;
+	
 	DEF_EXPRESS_DELIVERY_VARS();
 	RESET_EXPRESS_DELIVERY_VARS();
 	struct node * pnode=(struct node*)arg;
@@ -172,7 +270,14 @@ int l4_tunnel_process_func(void*arg)
 		/*here we can not use hash+packet_type to track the flow,
 		because these flags has nothing to do with inner payload*/
 		
-		fwd_id=decode_tunnel_packet(mbufs[iptr],&cached_vni,cached_mac,&cached_search_result);
+		fwd_id=decode_tunnel_packet(mbufs[iptr],
+			&cached_port,
+			&cached_vlan,
+			&cached_vni,
+			&cached_ipv4_addr,
+			&cached_l3iface_idx,
+			cached_mac,
+			&cached_search_result);
 
 		process_rc=proceed_mbuf(iptr,fwd_id);
 		if(process_rc==MBUF_PROCESS_RESTART){

@@ -128,11 +128,22 @@ main(int argc, char **argv)
 	copy_ether_address(l3iface->if_mac,"\x22\x95\x5b\x6b\x6d\x23");
 	register_l3_interface(l3iface);
 	
+
+	/*vlan network local-interface*/
+	l3iface=allocate_l3_interface();
+	l3iface->if_type=L3_INTERFACE_TYPE_PHYSICAL;
+	l3iface->lower_if_index=2;
+	l3iface->vlan_vid=509;
+	l3iface->if_ip_as_u32=MAKE_IP32(6,6,6,66);
+	register_l3_interface(l3iface);
+
+	
 	
 	struct real_server *rs=allocate_real_server();
 	rs->tunnel_id=VNI_SWAP_ORDER(3685);
 	rs->rs_ipv4=MAKE_IP32(4,4,4,4);
 	rs->lb_iface=2;
+	rs->rs_network_type=RS_NETWORK_TYPE_VXLAN;
 	//copy_ether_address(rs->rs_mac,"\x82\xe1\x5b\x6b\x6d\x2c");
 	copy_ether_address(rs->rs_mac,"\x9a\xb3\x0e\x2f\xc3\x2d");
 	printf("register rc:%d\n",register_real_server(rs));
@@ -142,10 +153,19 @@ main(int argc, char **argv)
 	rs->tunnel_id=VNI_SWAP_ORDER(3686);
 	rs->rs_ipv4=MAKE_IP32(5,5,5,5);
 	rs->lb_iface=3;
+	rs->rs_network_type=RS_NETWORK_TYPE_VXLAN;
 	copy_ether_address(rs->rs_mac,"\xc2\x47\x34\xce\xf0\xfb");
 	printf("register rc:%d\n",register_real_server(rs));
 	printf("register rc lb-local-index:%d\n",rs->local_index);
 
+	rs=allocate_real_server();
+	rs->vlan_id=509;
+	rs->rs_ipv4=MAKE_IP32(6,6,6,6);
+	rs->lb_iface=4;
+	rs->rs_network_type=RS_NETWORK_TYPE_VLAN;
+	copy_ether_address(rs->rs_mac,"\x3c\xfd\xfe\x9e\x97\x27");
+	printf("register rc:%d\n",register_real_server(rs));
+	printf("register rc lb-local-index:%d\n",rs->local_index);
 
 	/*register vip resource*/
 	struct virtual_ip * vip=allocate_virtual_ip();

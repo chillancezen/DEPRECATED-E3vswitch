@@ -155,7 +155,8 @@ __attribute__((always_inline)) static inline uint64_t nic_intel_xl710_classifica
 		else if(pif->port_type==PORT_TYPE_LB_INTERNAL){
 			if(mbuf->tun_type)/*XL710 only recognize vxlan as RTE_PTYPE_TUNNEL_GRENAT sometimes,sometimes it does not */
 				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS,0);
-			else if(mbuf->l4_type==(RTE_PTYPE_L4_UDP>>8))
+			else if((mbuf->l4_type==(RTE_PTYPE_L4_UDP>>8))||
+					(mbuf->l4_type==(RTE_PTYPE_L4_TCP>>8)))/*we also want TCP traffic in case it's vlan project network*/
 				fwd_id=MAKE_UINT64(LB_DEVICE_INPUT_FWD_TUNNEL_PROCESS,0);
 		}else if(pif->port_type==PORT_TYPE_LB_EXTERNAL){
 			if((mbuf->l4_type==(RTE_PTYPE_L4_UDP>>8))||(mbuf->l4_type==(RTE_PTYPE_L4_TCP>>8)))

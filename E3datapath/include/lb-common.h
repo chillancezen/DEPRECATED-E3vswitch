@@ -28,10 +28,16 @@ struct virtual_ip{
 	
 }__attribute__((aligned(64)));
 
+#define RS_NETWORK_TYPE_VXLAN 0x1
+#define RS_NETWORK_TYPE_VLAN  0x2
 struct real_server{
 	uint32_t rs_host_ipv4;
 	uint32_t rs_ipv4;/*it supports DSR and NAT mode,so make real_server address clear*/
-	uint32_t __key tunnel_id:24;/*project network vxlan segment ID*/
+	union{
+		uint32_t __key vlan_id:16;
+		uint32_t __key tunnel_id:24;/*project network vxlan segment ID*/
+	};
+	uint8_t rs_network_type;
 	uint8_t __key rs_mac[6];/*vNIV mac create by neutron port*/
 	uint8_t  rs_host_mac[6];
 	uint16_t lb_iface;/*l3-interface index:VM routes traffic to LB by routing traffic to 

@@ -73,7 +73,20 @@ int register_real_server(struct real_server * rs)
 		rcu_assign_pointer(grs_array[idx],NULL);
 		return -4;
 	}
-	
+	E3_LOG("register %s real-server:%02x:%02x:%02x:%02x:%02x:%02x with local index:%d and lb-side l3 iface:%d\n",
+                (rs->rs_network_type==RS_NETWORK_TYPE_VLAN)?
+                "vlan":
+                ((rs->rs_network_type==RS_NETWORK_TYPE_VXLAN)?
+                        "vxlan":
+                        "unknown"),
+                rs->rs_mac[0],
+                rs->rs_mac[1],
+                rs->rs_mac[2],
+                rs->rs_mac[3],
+                rs->rs_mac[4],
+                rs->rs_mac[5],
+                rs->local_index,
+                rs->lb_iface);	
 	return 0;
 }
 
