@@ -103,6 +103,7 @@ main(int argc, char **argv)
 	l3iface->lower_if_index=2;
 	l3iface->vlan_vid=507;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,150,1);
+	l3iface->use_e3_mac=1;
 	register_l3_interface(l3iface);
 	
 	l3iface=allocate_l3_interface();
@@ -110,6 +111,7 @@ main(int argc, char **argv)
 	l3iface->lower_if_index=1;
 	l3iface->vlan_vid=508;
 	l3iface->if_ip_as_u32=MAKE_IP32(130,140,151,1);
+	l3iface->use_e3_mac=1;
 	register_l3_interface(l3iface);
 	
 
@@ -135,6 +137,8 @@ main(int argc, char **argv)
 	l3iface->lower_if_index=2;
 	l3iface->vlan_vid=509;
 	l3iface->if_ip_as_u32=MAKE_IP32(6,6,6,66);
+	l3iface->use_e3_mac=0;
+	copy_ether_address(l3iface->if_mac,"\xc2\x95\x5b\x6b\x6d\xc2");
 	register_l3_interface(l3iface);
 
 	
@@ -182,6 +186,7 @@ main(int argc, char **argv)
 	
 	add_real_server_num_into_lb_member_pool(lb,0);
 	add_real_server_num_into_lb_member_pool(lb,1);
+	add_real_server_num_into_lb_member_pool(lb,2);
 
 
 

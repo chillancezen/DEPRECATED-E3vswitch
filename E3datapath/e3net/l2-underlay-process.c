@@ -57,8 +57,6 @@ int l2_under_process_poll_func(void * arg)
 			}
 		}
 		foreach_phy_l3_interface_safe_end();
-		if(arp_hdr->arp_data.arp_tip==MAKE_IP32(130,140,150,1))
-			printf("l2-underlay:%p %d\n",target_l3iface,port);
 		if(!target_l3iface)
 			goto drop_this_packet;
 		/*check vlan whether matches*/
@@ -69,9 +67,11 @@ int l2_under_process_poll_func(void * arg)
 		arp_hdr->arp_data.arp_tip=arp_hdr->arp_data.arp_sip;
 		arp_hdr->arp_data.arp_sip=target_l3iface->if_ip_as_u32;
 		copy_ether_address(arp_hdr->arp_data.arp_tha.addr_bytes,arp_hdr->arp_data.arp_sha.addr_bytes);
-		copy_ether_address(arp_hdr->arp_data.arp_sha.addr_bytes,pe3if->mac_addr.addr_bytes);
+		//copy_ether_address(arp_hdr->arp_data.arp_sha.addr_bytes,pe3if->mac_addr.addr_bytes);
+		copy_ether_address(arp_hdr->arp_data.arp_sha.addr_bytes,l3iface->if_mac);
 		copy_ether_address(eth_hdr->d_addr.addr_bytes,eth_hdr->s_addr.addr_bytes);
-		copy_ether_address(eth_hdr->s_addr.addr_bytes,pe3if->mac_addr.addr_bytes);
+		//copy_ether_address(eth_hdr->s_addr.addr_bytes,pe3if->mac_addr.addr_bytes);
+		copy_ether_address(eth_hdr->s_addr.addr_bytes,l3iface->if_mac);
 		if(mbufs[idx]->vlan_tci)
 			mbufs[idx]->ol_flags|=PKT_TX_VLAN_PKT;
 		nr_delivered=deliver_mbufs_to_node(pe3if->output_node_arrar[0],&mbufs[idx],1);

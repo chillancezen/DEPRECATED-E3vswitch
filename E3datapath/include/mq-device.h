@@ -19,7 +19,7 @@ struct mq_device_ops{
 
 int register_native_mq_dpdk_port(const char * params,struct mq_device_ops * dev_ops,int *pport_id);
 void unregister_native_mq_dpdk_port(int port_id);
-
+int change_e3_interface_mtu(int iface,int mtu);
 int start_e3_interface(int iface);
 void mq_device_module_test(void);
 

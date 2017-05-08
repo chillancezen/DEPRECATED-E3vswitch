@@ -1,6 +1,6 @@
 
 #include <l3-interface.h>
-#include <device.h>
+#include <mq-device.h>
 #include <e3_log.h>
 #include <rte_malloc.h>
 
@@ -53,9 +53,15 @@ int register_l3_interface(struct l3_interface * l3iface)
 		E3_ERROR("l3 interface registration fails due to MAX_L3_INTERFACE_NR=%d\n",MAX_L3_INTERFACE_NR);
 		return -4;
 	}
+	if((l3iface->if_type==L3_INTERFACE_TYPE_PHYSICAL)&&l3iface->use_e3_mac){
+		struct E3interface * pe3iface=find_e3iface_by_index(l3iface->lower_if_index);
+		if(!pe3iface)
+			return -5;
+		copy_ether_address(l3iface->if_mac,pe3iface->mac_addr.addr_bytes);
+	}
 	l3iface->local_index=idx;
 	rcu_assign_pointer(gl3if_array[idx],l3iface);
-	E3_LOG("register L3 %s interface:%d.%d.%d.%d with lower interface index %d \n",
+	E3_LOG("register L3 %s interface:%d.%d.%d.%d with mac: %02x:%02x:%02x:%02x:%02x:%02x and lower interface index %d \n",
 			(gl3if_array[idx]->if_type==L3_INTERFACE_TYPE_PHYSICAL)?
 			"phy":
 			"virt",
@@ -63,6 +69,12 @@ int register_l3_interface(struct l3_interface * l3iface)
 			gl3if_array[idx]->if_ip_as_u8[1],
 			gl3if_array[idx]->if_ip_as_u8[2],
 			gl3if_array[idx]->if_ip_as_u8[3],
+			gl3if_array[idx]->if_mac[0],
+			gl3if_array[idx]->if_mac[1],
+			gl3if_array[idx]->if_mac[2],
+			gl3if_array[idx]->if_mac[3],
+			gl3if_array[idx]->if_mac[4],
+			gl3if_array[idx]->if_mac[5],
 			gl3if_array[idx]->lower_if_index);
 	return 0;
 }

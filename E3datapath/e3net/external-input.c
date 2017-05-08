@@ -93,49 +93,90 @@ __attribute__((always_inline))
 	}
 	_(pvip&&lb&&preal_srv);
 	
-	_(rte_pktmbuf_prepend(mbuf,50));
-	_(plocal_l3iface=find_l3_interface_at_index(preal_srv->lb_iface));
-	_(pphy_l3iface=find_l3_interface_at_index(plocal_l3iface->lower_if_index));
-	_(pe3_iface=find_e3iface_by_index(pphy_l3iface->lower_if_index));
-	
-	/*rewrite ip hdr and upper-layer pseudo header*/
-	ip_hdr->dst_addr=preal_srv->rs_ipv4;
-	ip_hdr->hdr_checksum=0;
-	switch(ip_hdr->next_proto_id)
+	switch(preal_srv->rs_network_type)
 	{
-		case 0x11:
-			udp_hdr=(struct udp_hdr*)(((ip_hdr->version_ihl&0xf)<<2)+(uint8_t*)ip_hdr);
-			if(udp_hdr->dgram_cksum){
-				udp_hdr->dgram_cksum=rte_ipv4_phdr_cksum(ip_hdr,0);
-				mbuf->ol_flags=PKT_TX_UDP_CKSUM;
+		case RS_NETWORK_TYPE_VXLAN:
+			_(rte_pktmbuf_prepend(mbuf,50));
+			_(plocal_l3iface=find_l3_interface_at_index(preal_srv->lb_iface));
+			_(plocal_l3iface->if_type==L3_INTERFACE_TYPE_VIRTUAL);
+			_(pphy_l3iface=find_l3_interface_at_index(plocal_l3iface->lower_if_index));
+			_(pphy_l3iface->if_type==L3_INTERFACE_TYPE_PHYSICAL);
+			_(pe3_iface=find_e3iface_by_index(pphy_l3iface->lower_if_index));
+			
+			/*rewrite ip hdr and upper-layer pseudo header*/
+			ip_hdr->dst_addr=preal_srv->rs_ipv4;
+			ip_hdr->hdr_checksum=0;
+			switch(ip_hdr->next_proto_id)
+			{
+				case 0x11:
+					udp_hdr=(struct udp_hdr*)(((ip_hdr->version_ihl&0xf)<<2)+(uint8_t*)ip_hdr);
+					if(udp_hdr->dgram_cksum){
+						udp_hdr->dgram_cksum=rte_ipv4_phdr_cksum(ip_hdr,0);
+						mbuf->ol_flags=PKT_TX_UDP_CKSUM;
+					}
+					break;
+				case 0x6:
+					tcp_hdr=(struct tcp_hdr*)(((ip_hdr->version_ihl&0xf)<<2)+(uint8_t*)ip_hdr);
+					tcp_hdr->cksum=rte_ipv4_phdr_cksum(ip_hdr,0);
+					mbuf->ol_flags=PKT_TX_TCP_CKSUM;
+					break;
+				default:
+					_(0);
 			}
+			copy_ether_address(eth_hdr->s_addr.addr_bytes,plocal_l3iface->if_mac);
+			copy_ether_address(eth_hdr->d_addr.addr_bytes,preal_srv->rs_mac);
+			mbuf->l2_len=64;
+			mbuf->l3_len=(ip_hdr->version_ihl&0xf)<<2;
+			mbuf->ol_flags|=PKT_TX_IP_CKSUM|PKT_TX_IPV4;
+			vxlan_encapsulate_mbuf(mbuf,
+				preal_srv,
+				plocal_l3iface,
+				pphy_l3iface,
+				pe3_iface,
+				0);
+			nr_xmit_queue=mbuf->hash.fdir.lo%pe3_iface->nr_queues;
+			lo_part=MAKE_UINT32(pe3_iface->port_id,nr_xmit_queue);
+			fwd_id=MAKE_UINT64(EXTERNAL_INPUT_PROCESS_FWD_XMIT,lo_part);
 			break;
-		case 0x6:
-			tcp_hdr=(struct tcp_hdr*)(((ip_hdr->version_ihl&0xf)<<2)+(uint8_t*)ip_hdr);
-			tcp_hdr->cksum=rte_ipv4_phdr_cksum(ip_hdr,0);
-			mbuf->ol_flags=PKT_TX_TCP_CKSUM;
+		case RS_NETWORK_TYPE_VLAN:
+			_(plocal_l3iface=find_l3_interface_at_index(preal_srv->lb_iface));
+			_(plocal_l3iface->if_type==L3_INTERFACE_TYPE_PHYSICAL);
+			_(pe3_iface=find_e3iface_by_index(plocal_l3iface->lower_if_index));
+			
+			ip_hdr->dst_addr=preal_srv->rs_ipv4;
+			ip_hdr->hdr_checksum=0;
+			switch(ip_hdr->next_proto_id)
+			{
+				case 0x11:
+					udp_hdr=(struct udp_hdr*)(((ip_hdr->version_ihl&0xf)<<2)+(uint8_t*)ip_hdr);
+					if(udp_hdr->dgram_cksum){
+						udp_hdr->dgram_cksum=rte_ipv4_phdr_cksum(ip_hdr,0);
+						mbuf->ol_flags=PKT_TX_UDP_CKSUM;
+					}
+					break;
+				case 0x6:
+					tcp_hdr=(struct tcp_hdr*)(((ip_hdr->version_ihl&0xf)<<2)+(uint8_t*)ip_hdr);
+					tcp_hdr->cksum=rte_ipv4_phdr_cksum(ip_hdr,0);
+					mbuf->ol_flags=PKT_TX_TCP_CKSUM;
+					break;
+				default:
+					_(0);
+			}
+			copy_ether_address(eth_hdr->s_addr.addr_bytes,plocal_l3iface->if_mac);
+			copy_ether_address(eth_hdr->d_addr.addr_bytes,preal_srv->rs_mac);
+			mbuf->l2_len=14;
+			mbuf->l3_len=(ip_hdr->version_ihl&0xf)<<2;
+			mbuf->ol_flags|=PKT_TX_IP_CKSUM|PKT_TX_IPV4;
+			if(plocal_l3iface->vlan_vid){
+				mbuf->vlan_tci=plocal_l3iface->vlan_vid;
+				mbuf->ol_flags|=PKT_TX_VLAN_PKT;
+			}
+			nr_xmit_queue=mbuf->hash.fdir.lo%pe3_iface->nr_queues;
+			lo_part=MAKE_UINT32(pe3_iface->port_id,nr_xmit_queue);
+			fwd_id=MAKE_UINT64(EXTERNAL_INPUT_PROCESS_FWD_XMIT,lo_part);
 			break;
-		default:
-			_(0);
 	}
-	copy_ether_address(eth_hdr->s_addr.addr_bytes,plocal_l3iface->if_mac);
-	copy_ether_address(eth_hdr->d_addr.addr_bytes,preal_srv->rs_mac);
-
-	mbuf->l2_len=64;
-	mbuf->l3_len=(ip_hdr->version_ihl&0xf)<<2;
-	mbuf->ol_flags|=PKT_TX_IP_CKSUM|PKT_TX_IPV4;
 	
-	vxlan_encapsulate_mbuf(mbuf,
-		preal_srv,
-		plocal_l3iface,
-		pphy_l3iface,
-		pe3_iface,
-		0);
-
-	nr_xmit_queue=mbuf->hash.fdir.lo%pe3_iface->nr_queues;
-
-	lo_part=MAKE_UINT32(pe3_iface->port_id,nr_xmit_queue);
-	fwd_id=MAKE_UINT64(EXTERNAL_INPUT_PROCESS_FWD_XMIT,lo_part);
 	#undef _
 	ret:
 	return fwd_id;

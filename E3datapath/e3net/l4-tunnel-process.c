@@ -102,9 +102,7 @@ __attribute__((always_inline))
 		copy_ether_address(cached_mac,eth_hdr->s_addr.addr_bytes);
 	}
 	mbuf->udata64=rs_num;
-	//fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_LB_PROCESS,0);
-	if(rs_num!=-1)
-		printf("rs_num:%d\n",rs_num);
+	fwd_id=MAKE_UINT64(L4_TUNNEL_PROCESS_FWD_LB_PROCESS,0);
 	return fwd_id;
 }
 

@@ -79,7 +79,8 @@ int l3_under_process_poll_func(void * arg)
 		mbufs[idx]->ol_flags=PKT_TX_IPV4|PKT_TX_IP_CKSUM;
 		/*modify ethernet layer header*/
 		copy_ether_address(eth_hdr->d_addr.addr_bytes,eth_hdr->s_addr.addr_bytes);
-		copy_ether_address(eth_hdr->s_addr.addr_bytes,pe3if->mac_addr.addr_bytes);
+		//copy_ether_address(eth_hdr->s_addr.addr_bytes,pe3if->mac_addr.addr_bytes);
+		copy_ether_address(eth_hdr->s_addr.addr_bytes,target_l3iface->if_mac);
 		
 		
 		if(mbufs[idx]->vlan_tci)

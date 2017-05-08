@@ -41,7 +41,7 @@ __attribute__((always_inline))static inline
 	struct real_server * preal_srv;
 	struct lb_instance * plb;
 	struct virtual_ip  * pvip;
-	struct l3_interface* pl3_iface;
+	//struct l3_interface* pl3_iface;
 	struct l3_interface* pphy_iface;
 	struct E3interface * pe3_iface;
 
@@ -55,15 +55,24 @@ __attribute__((always_inline))static inline
 	uint64_t fwd_id=MAKE_UINT64(INTERNAL_INPUT_PROCESS_FWD_DROP,0);
 	nr_real_server=(int)mbuf->udata64;
 	/*there is no need to cached data sstructure pointer since 
-	the finding theme is very cheap*/
+	the finding them is very cheap*/
 	_(preal_srv=find_real_server_at_index(nr_real_server));
 	_(plb=find_lb_instance_at_index(preal_srv->lb_instance_index));
 	_(pvip=find_virtual_ip_at_index(plb->vip_index));
-	_(pl3_iface=find_l3_interface_at_index(pvip->virt_if_index));
-	_(pphy_iface=find_l3_interface_at_index(pl3_iface->lower_if_index));
+	//_(pl3_iface=find_l3_interface_at_index(pvip->virt_if_index));
+	//_(pphy_iface=find_l3_interface_at_index(pl3_iface->lower_if_index));
+	_(pphy_iface=find_l3_interface_at_index(pvip->virt_if_index));
+	_(pphy_iface->if_type==L3_INTERFACE_TYPE_PHYSICAL);
 	_(pe3_iface=find_e3iface_by_index(pphy_iface->lower_if_index));
-	outer_len=30+mbuf->outer_l3_len;
-	rte_pktmbuf_adj(mbuf,outer_len);
+	switch(preal_srv->rs_network_type)
+	{
+		case RS_NETWORK_TYPE_VXLAN:
+			outer_len=30+mbuf->outer_l3_len;
+			rte_pktmbuf_adj(mbuf,outer_len);
+			break;
+		case RS_NETWORK_TYPE_VLAN:
+			break;
+	}
 	eth_hdr=rte_pktmbuf_mtod(mbuf,struct ether_hdr*);
 	ip_hdr=(struct ipv4_hdr*)(eth_hdr+1);
 	ip_hdr->src_addr=pvip->ip_as_u32;
@@ -71,7 +80,6 @@ __attribute__((always_inline))static inline
 	mbuf->l2_len=14;
 	mbuf->l3_len=(ip_hdr->version_ihl&0xf)<<2;
 	mbuf->ol_flags=PKT_TX_IPV4|PKT_TX_IP_CKSUM;
-		
 	switch(ip_hdr->next_proto_id)
 	{
 		case 0x11:
@@ -94,10 +102,9 @@ __attribute__((always_inline))static inline
 		mbuf->vlan_tci=pphy_iface->vlan_vid;
 		mbuf->ol_flags|=PKT_TX_VLAN_PKT;
 	}
-	
+	copy_ether_address(eth_hdr->s_addr.addr_bytes,pphy_iface->if_mac);
 	copy_ether_address(eth_hdr->s_addr.addr_bytes,pe3_iface->mac_addr.addr_bytes);
 	copy_ether_address(eth_hdr->d_addr.addr_bytes,pvip->next_mac);
-
 	nr_xmit_queue=mbuf->hash.fdir.lo%pe3_iface->nr_queues;
 	lo_part=MAKE_UINT32(pe3_iface->port_id,nr_xmit_queue);
 	fwd_id=MAKE_UINT64(INTERNAL_INPUT_PROCESS_FWD_XMIT,lo_part);

@@ -412,6 +412,13 @@ int checksum_cap_check(int port_id)
 	error_check:
 		return -1;
 }
+int change_e3_interface_mtu(int iface,int mtu)
+{
+	struct E3interface * pe3_iface=find_e3iface_by_index(iface);
+	if(!pe3_iface)
+		return -1;
+	return rte_eth_dev_set_mtu(iface,mtu);
+}
 int start_e3_interface(int iface)
 {
 	int rc;

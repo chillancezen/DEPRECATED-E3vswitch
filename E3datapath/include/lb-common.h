@@ -62,6 +62,7 @@ struct l3_interface{
 	};
 	uint8_t if_mac[6];
 	uint8_t if_type;
+	uint8_t use_e3_mac;
 	uint16_t __key lower_if_index;/*if it's a virtual interface ,the lower_if_index
 	is the physical E3Interface,otherwise it's another virtual interface*/
 	uint16_t local_index;

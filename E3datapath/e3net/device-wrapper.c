@@ -420,7 +420,7 @@ int add_e3_interface(const char *params,uint8_t nic_type,uint8_t if_type,int *pp
 			*pport_id=_pport_id;
 		pif=find_e3iface_by_index(_pport_id);
 		pif->hardware_nic_type=nic_type;
-		
+		change_e3_interface_mtu(_pport_id,1600);
 		int exec_rc=e3interface_turn_vlan_strip_on(_pport_id);
 		E3_WARN("vlan stripping on %d %s\n",_pport_id,!exec_rc?"succeeds":"fails");
 	}
